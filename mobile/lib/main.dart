@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:educonnect/core/di/injection.dart';
 import 'package:educonnect/core/router/app_router.dart';
@@ -14,8 +15,30 @@ void main() async {
   runApp(const EduConnectApp());
 }
 
-class EduConnectApp extends StatelessWidget {
+class EduConnectApp extends StatefulWidget {
   const EduConnectApp({super.key});
+
+  @override
+  State<EduConnectApp> createState() => _EduConnectAppState();
+}
+
+class _EduConnectAppState extends State<EduConnectApp> {
+  late final AuthBloc _authBloc;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _authBloc = getIt<AuthBloc>()..add(AuthCheckRequested());
+    _router = createRouter(_authBloc);
+  }
+
+  @override
+  void dispose() {
+    _router.dispose();
+    _authBloc.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +48,7 @@ class EduConnectApp extends StatelessWidget {
       builder: (context, child) {
         return MultiBlocProvider(
           providers: [
-            BlocProvider(
-              create: (_) => getIt<AuthBloc>()..add(AuthCheckRequested()),
-            ),
+            BlocProvider.value(value: _authBloc),
           ],
           child: MaterialApp.router(
             title: 'EduConnect',
@@ -35,7 +56,7 @@ class EduConnectApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: ThemeMode.system,
-            routerConfig: appRouter,
+            routerConfig: _router,
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,

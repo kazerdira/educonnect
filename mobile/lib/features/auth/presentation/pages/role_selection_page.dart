@@ -12,7 +12,7 @@ class RoleSelectionPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Créer un compte')),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: 24.w),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

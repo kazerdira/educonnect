@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:educonnect/core/constants/wilayas.dart';
 import 'package:educonnect/core/theme/app_theme.dart';
 import 'package:educonnect/features/auth/presentation/bloc/auth_bloc.dart';
 
@@ -23,6 +24,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _wilayaController = TextEditingController();
+  String? _selectedWilaya;
   bool _obscurePassword = true;
 
   // Teacher-specific
@@ -64,44 +66,44 @@ class _RegisterPageState extends State<RegisterPage> {
     switch (widget.role) {
       case 'teacher':
         context.read<AuthBloc>().add(
-          AuthRegisterTeacherRequested(
-            email: _emailController.text.trim(),
-            phone: _phoneController.text.trim(),
-            password: _passwordController.text,
-            firstName: _firstNameController.text.trim(),
-            lastName: _lastNameController.text.trim(),
-            wilaya: _wilayaController.text.trim(),
-            bio: _bioController.text.trim().isNotEmpty
-                ? _bioController.text.trim()
-                : null,
-            experienceYears: int.tryParse(_experienceController.text),
-          ),
-        );
+              AuthRegisterTeacherRequested(
+                email: _emailController.text.trim(),
+                phone: _phoneController.text.trim(),
+                password: _passwordController.text,
+                firstName: _firstNameController.text.trim(),
+                lastName: _lastNameController.text.trim(),
+                wilaya: _wilayaController.text.trim(),
+                bio: _bioController.text.trim().isNotEmpty
+                    ? _bioController.text.trim()
+                    : null,
+                experienceYears: int.tryParse(_experienceController.text),
+              ),
+            );
         break;
       case 'parent':
         context.read<AuthBloc>().add(
-          AuthRegisterParentRequested(
-            email: _emailController.text.trim(),
-            phone: _phoneController.text.trim(),
-            password: _passwordController.text,
-            firstName: _firstNameController.text.trim(),
-            lastName: _lastNameController.text.trim(),
-            wilaya: _wilayaController.text.trim(),
-          ),
-        );
+              AuthRegisterParentRequested(
+                email: _emailController.text.trim(),
+                phone: _phoneController.text.trim(),
+                password: _passwordController.text,
+                firstName: _firstNameController.text.trim(),
+                lastName: _lastNameController.text.trim(),
+                wilaya: _wilayaController.text.trim(),
+              ),
+            );
         break;
       case 'student':
         context.read<AuthBloc>().add(
-          AuthRegisterStudentRequested(
-            email: _emailController.text.trim(),
-            phone: _phoneController.text.trim(),
-            password: _passwordController.text,
-            firstName: _firstNameController.text.trim(),
-            lastName: _lastNameController.text.trim(),
-            wilaya: _wilayaController.text.trim(),
-            levelCode: _selectedLevelCode ?? '',
-          ),
-        );
+              AuthRegisterStudentRequested(
+                email: _emailController.text.trim(),
+                phone: _phoneController.text.trim(),
+                password: _passwordController.text,
+                firstName: _firstNameController.text.trim(),
+                lastName: _lastNameController.text.trim(),
+                wilaya: _wilayaController.text.trim(),
+                levelCode: _selectedLevelCode ?? '',
+              ),
+            );
         break;
     }
   }
@@ -193,11 +195,27 @@ class _RegisterPageState extends State<RegisterPage> {
                     },
                   ),
                   SizedBox(height: 12.h),
-                  _buildTextField(
-                    controller: _wilayaController,
-                    label: 'Wilaya',
-                    icon: Icons.location_on_outlined,
-                    validator: _required,
+                  DropdownButtonFormField<String>(
+                    value: _selectedWilaya,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Wilaya',
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                    menuMaxHeight: 300.h,
+                    items: Wilayas.all
+                        .map((w) => DropdownMenuItem(
+                              value: w,
+                              child: Text(w, overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedWilaya = v;
+                        _wilayaController.text = v ?? '';
+                      });
+                    },
+                    validator: (v) => v == null ? 'Wilaya requise' : null,
                   ),
 
                   // Role-specific fields
@@ -225,8 +243,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     },
                   ),
                   SizedBox(height: 16.h),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       const Text('Déjà un compte ?'),
                       TextButton(
@@ -269,10 +288,12 @@ class _RegisterPageState extends State<RegisterPage> {
       SizedBox(height: 12.h),
       DropdownButtonFormField<String>(
         value: _selectedLevelCode,
+        isExpanded: true,
         decoration: const InputDecoration(
           labelText: 'Niveau scolaire',
           prefixIcon: Icon(Icons.school_outlined),
         ),
+        menuMaxHeight: 300.h,
         items: const [
           DropdownMenuItem(value: '1AP', child: Text('1ère Année Primaire')),
           DropdownMenuItem(value: '2AP', child: Text('2ème Année Primaire')),
@@ -285,22 +306,24 @@ class _RegisterPageState extends State<RegisterPage> {
           DropdownMenuItem(value: '4AM', child: Text('4ème Année Moyenne')),
           DropdownMenuItem(value: '1AS-ST', child: Text('1ère AS - Sciences')),
           DropdownMenuItem(value: '1AS-L', child: Text('1ère AS - Lettres')),
+          DropdownMenuItem(value: '2AS-SE', child: Text('2ème AS - Sc. Exp.')),
+          DropdownMenuItem(value: '2AS-M', child: Text('2ème AS - Maths')),
           DropdownMenuItem(
-            value: '2AS-SE',
-            child: Text('2ème AS - Sciences Expérimentales'),
-          ),
+              value: '2AS-TM', child: Text('2ème AS - Tech. Maths')),
+          DropdownMenuItem(value: '2AS-GE', child: Text('2ème AS - Gestion')),
           DropdownMenuItem(
-            value: '2AS-M',
-            child: Text('2ème AS - Mathématiques'),
-          ),
+              value: '2AS-LP', child: Text('2ème AS - Lettres/Philo')),
           DropdownMenuItem(
-            value: '3AS-SE',
-            child: Text('3ème AS - Sciences Expérimentales'),
-          ),
+              value: '2AS-LE', child: Text('2ème AS - Langues Étr.')),
+          DropdownMenuItem(value: '3AS-SE', child: Text('3ème AS - Sc. Exp.')),
+          DropdownMenuItem(value: '3AS-M', child: Text('3ème AS - Maths')),
           DropdownMenuItem(
-            value: '3AS-M',
-            child: Text('3ème AS - Mathématiques'),
-          ),
+              value: '3AS-TM', child: Text('3ème AS - Tech. Maths')),
+          DropdownMenuItem(value: '3AS-GE', child: Text('3ème AS - Gestion')),
+          DropdownMenuItem(
+              value: '3AS-LP', child: Text('3ème AS - Lettres/Philo')),
+          DropdownMenuItem(
+              value: '3AS-LE', child: Text('3ème AS - Langues Étr.')),
         ],
         onChanged: (v) => setState(() => _selectedLevelCode = v),
         validator: (v) => v == null ? 'Niveau requis' : null,

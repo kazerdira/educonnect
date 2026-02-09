@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import 'package:educonnect/core/theme/app_theme.dart';
 import 'package:educonnect/features/auth/presentation/bloc/auth_bloc.dart';
 
+/// Dashboard tab – shown inside [ShellPage] as the first tab.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -23,73 +25,56 @@ class HomePage extends StatelessWidget {
                   // TODO: Navigate to notifications
                 },
               ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () {
-                  context.read<AuthBloc>().add(AuthLogoutRequested());
-                },
-              ),
             ],
           ),
           body: SafeArea(
-            child: Padding(
+            child: ListView(
               padding: EdgeInsets.all(24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Bonjour${user != null ? ', ${user.firstName}' : ''} 👋',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    _getRoleSubtitle(user?.role),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  SizedBox(height: 32.h),
+              children: [
+                // ── Greeting ──────────────────────────────────
+                Text(
+                  'Bonjour${user != null ? ', ${user.firstName}' : ''} 👋',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                SizedBox(height: 4.h),
+                Text(
+                  _getRoleSubtitle(user?.role),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
 
-                  // Placeholder cards
-                  Expanded(
-                    child: GridView.count(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 16.h,
-                      crossAxisSpacing: 16.w,
-                      children: [
-                        _buildFeatureCard(
-                          context,
-                          icon: Icons.video_camera_front,
-                          label: 'Sessions',
-                          color: const Color(0xFF1565C0),
-                        ),
-                        _buildFeatureCard(
-                          context,
-                          icon: Icons.menu_book,
-                          label: 'Cours',
-                          color: const Color(0xFF00897B),
-                        ),
-                        _buildFeatureCard(
-                          context,
-                          icon: Icons.search,
-                          label: 'Rechercher',
-                          color: const Color(0xFFFFA726),
-                        ),
-                        _buildFeatureCard(
-                          context,
-                          icon: Icons.bar_chart,
-                          label: 'Progression',
-                          color: const Color(0xFF7B1FA2),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                SizedBox(height: 28.h),
+
+                // ── Quick-action cards ────────────────────────
+                GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 14.h,
+                  crossAxisSpacing: 14.w,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: _cardsForRole(user?.role),
+                ),
+
+                SizedBox(height: 28.h),
+
+                // ── Upcoming section (placeholder) ────────────
+                Text(
+                  'Prochaines sessions',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                SizedBox(height: 12.h),
+                _EmptyHint(
+                  icon: Icons.event_outlined,
+                  message: 'Aucune session prévue pour le moment',
+                ),
+              ],
             ),
           ),
         );
       },
     );
   }
+
+  // ── Role helpers ──────────────────────────────────────────────
 
   String _getRoleSubtitle(String? role) {
     switch (role) {
@@ -104,12 +89,76 @@ class HomePage extends StatelessWidget {
     }
   }
 
-  Widget _buildFeatureCard(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
+  List<Widget> _cardsForRole(String? role) {
+    switch (role) {
+      case 'teacher':
+        return [
+          _FeatureCard(
+              icon: Icons.video_camera_front,
+              label: 'Mes Sessions',
+              color: AppTheme.primary),
+          _FeatureCard(
+              icon: Icons.menu_book,
+              label: 'Mes Cours',
+              color: AppTheme.secondary),
+          _FeatureCard(
+              icon: Icons.star_outline, label: 'Avis', color: AppTheme.accent),
+          _FeatureCard(
+              icon: Icons.bar_chart,
+              label: 'Revenus',
+              color: const Color(0xFF7B1FA2)),
+        ];
+      case 'parent':
+        return [
+          _FeatureCard(
+              icon: Icons.child_care,
+              label: 'Mes Enfants',
+              color: AppTheme.primary),
+          _FeatureCard(
+              icon: Icons.search,
+              label: 'Rechercher',
+              color: AppTheme.secondary),
+          _FeatureCard(
+              icon: Icons.payment, label: 'Paiements', color: AppTheme.accent),
+          _FeatureCard(
+              icon: Icons.bar_chart,
+              label: 'Progression',
+              color: const Color(0xFF7B1FA2)),
+        ];
+      default: // student
+        return [
+          _FeatureCard(
+              icon: Icons.video_camera_front,
+              label: 'Sessions',
+              color: AppTheme.primary),
+          _FeatureCard(
+              icon: Icons.menu_book, label: 'Cours', color: AppTheme.secondary),
+          _FeatureCard(
+              icon: Icons.search, label: 'Rechercher', color: AppTheme.accent),
+          _FeatureCard(
+              icon: Icons.bar_chart,
+              label: 'Progression',
+              color: const Color(0xFF7B1FA2)),
+        ];
+    }
+  }
+}
+
+// ── Reusable feature card ────────────────────────────────────────
+
+class _FeatureCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _FeatureCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Card(
       child: InkWell(
         onTap: () {
@@ -130,12 +179,46 @@ class HomePage extends StatelessWidget {
             SizedBox(height: 12.h),
             Text(
               label,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontSize: 15.sp),
+              textAlign: TextAlign.center,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontSize: 14.sp),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Empty hint widget ────────────────────────────────────────────
+
+class _EmptyHint extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _EmptyHint({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(vertical: 32.h),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 40.sp, color: AppTheme.textSecondary),
+          SizedBox(height: 8.h),
+          Text(
+            message,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14.sp),
+          ),
+        ],
       ),
     );
   }
