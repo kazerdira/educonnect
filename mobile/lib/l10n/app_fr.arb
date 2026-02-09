@@ -1,0 +1,34 @@
+{
+  "@@locale": "fr",
+  "appName": "EduConnect",
+  "login": "Se connecter",
+  "register": "S'inscrire",
+  "email": "Email",
+  "password": "Mot de passe",
+  "phone": "Téléphone",
+  "firstName": "Prénom",
+  "lastName": "Nom",
+  "wilaya": "Wilaya",
+  "teacher": "Enseignant",
+  "parent": "Parent",
+  "student": "Élève",
+  "forgotPassword": "Mot de passe oublié ?",
+  "createAccount": "Créer un compte",
+  "alreadyHaveAccount": "Déjà un compte ?",
+  "chooseRole": "Vous êtes...",
+  "sessions": "Sessions",
+  "courses": "Cours",
+  "search": "Rechercher",
+  "progress": "Progression",
+  "notifications": "Notifications",
+  "settings": "Paramètres",
+  "logout": "Déconnexion",
+  "welcome": "Bonjour, {name} 👋",
+  "@welcome": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
+}

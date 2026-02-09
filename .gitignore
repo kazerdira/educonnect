@@ -1,0 +1,61 @@
+# ─── OS & IDE ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.iml
+*.sublime-*
+
+# ─── Environment & Secrets ───────────────────────────────────
+.env
+.env.*
+!.env.example
+firebase-service-account.json
+*.pem
+*.key
+
+# ─── Go ───────────────────────────────────────────────────────
+backend/tmp/
+backend/bin/
+backend/vendor/
+*.exe
+*.exe~
+*.out
+*.test
+*.prof
+
+# ─── Flutter ──────────────────────────────────────────────────
+mobile/.dart_tool/
+mobile/.packages
+mobile/.pub/
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/*.jks
+mobile/android/*.keystore
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/ios/Runner/GeneratedPluginRegistrant.*
+
+# ─── Database ─────────────────────────────────────────────────
+backend/db/generated/
+
+# ─── Docker ───────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ─── Build artifacts & logs ──────────────────────────────────
+*.log
+build.log
+build_errors.txt
+build_output.txt
+coverage/
+dist/

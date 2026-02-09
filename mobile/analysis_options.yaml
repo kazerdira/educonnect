@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    always_use_package_imports: true
+    sort_constructors_first: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    unawaited_futures: true
+    avoid_print: true
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.config.dart"
