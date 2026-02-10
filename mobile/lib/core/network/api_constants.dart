@@ -121,6 +121,6 @@ class ApiConstants {
   static const String adminAnalyticsOverview =
       '/admin/analytics/overview'; // GET
   static const String adminAnalyticsRevenue = '/admin/analytics/revenue'; // GET
-  static const String adminUpdateSubjects = '/admin/subjects'; // PUT
-  static const String adminUpdateLevels = '/admin/levels'; // PUT
+  static const String adminUpdateSubjects = '/admin/config/subjects'; // PUT
+  static const String adminUpdateLevels = '/admin/config/levels'; // PUT
 }

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:educonnect/core/network/api_client.dart';
 import 'package:educonnect/core/storage/secure_storage.dart';
 import 'package:educonnect/features/auth/data/datasources/auth_remote_datasource.dart';
 import 'package:educonnect/features/auth/data/models/user_model.dart';
@@ -9,11 +10,13 @@ import 'package:educonnect/features/auth/domain/repositories/auth_repository.dar
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
   final SecureStorage secureStorage;
+  final ApiClient _apiClient;
 
   AuthRepositoryImpl({
     required this.remoteDataSource,
     required this.secureStorage,
-  });
+    required ApiClient apiClient,
+  }) : _apiClient = apiClient;
 
   @override
   Future<AuthResult> login({
@@ -129,6 +132,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
+    _apiClient.setAccessToken(null);
     await secureStorage.clearAll();
   }
 
@@ -143,6 +147,8 @@ class AuthRepositoryImpl implements AuthRepository {
       accessToken: accessToken,
       refreshToken: refreshToken,
     );
+    // Immediately warm the in-memory token cache
+    _apiClient.setAccessToken(accessToken);
     await secureStorage.saveUserData(jsonEncode((user as UserModel).toJson()));
 
     return AuthResult(

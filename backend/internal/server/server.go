@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"educonnect/internal/admin"
@@ -71,7 +72,7 @@ func New(deps *Dependencies) *Server {
 	router := gin.New()
 
 	// Initialize services and handlers
-	authService := auth.NewService(deps.DB, deps.Cache, deps.Config)
+	authService := auth.NewService(deps.DB, deps.Cache, deps.Config, deps.Search)
 	authHandler := auth.NewHandler(authService)
 
 	userService := user.NewService(deps.DB, deps.Cache, deps.Storage)
@@ -138,6 +139,9 @@ func New(deps *Dependencies) *Server {
 
 	s.setupRoutes()
 
+	// Sync existing teachers to Meilisearch on startup
+	go s.syncTeachersToSearch()
+
 	return s
 }
 
@@ -149,4 +153,51 @@ func (s *Server) Start() error {
 // Shutdown gracefully stops the server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
+}
+
+// syncTeachersToSearch indexes all teachers into Meilisearch at startup.
+func (s *Server) syncTeachersToSearch() {
+	if s.deps.Search == nil {
+		return
+	}
+	ctx := context.Background()
+	rows, err := s.deps.DB.Pool.Query(ctx,
+		`SELECT tp.user_id, u.first_name, u.last_name, COALESCE(u.wilaya,''),
+		        COALESCE(tp.bio,''), tp.rating_avg, tp.total_sessions
+		 FROM teacher_profiles tp
+		 JOIN users u ON u.id = tp.user_id
+		 WHERE u.is_active = true`)
+	if err != nil {
+		slog.Warn("sync teachers to search failed", "error", err)
+		return
+	}
+	defer rows.Close()
+
+	var docs []interface{}
+	for rows.Next() {
+		var id, firstName, lastName, wilaya, bio string
+		var ratingAvg float64
+		var totalSessions int
+		if err := rows.Scan(&id, &firstName, &lastName, &wilaya, &bio, &ratingAvg, &totalSessions); err != nil {
+			continue
+		}
+		docs = append(docs, map[string]interface{}{
+			"id":             id,
+			"name":           firstName + " " + lastName,
+			"first_name":     firstName,
+			"last_name":      lastName,
+			"wilaya":         wilaya,
+			"bio":            bio,
+			"rating_avg":     ratingAvg,
+			"total_sessions": totalSessions,
+		})
+	}
+	if len(docs) > 0 {
+		_, err := s.deps.Search.Client.Index("teachers").AddDocuments(docs)
+		if err != nil {
+			slog.Warn("failed to index teachers", "error", err)
+		} else {
+			slog.Info("synced teachers to search", "count", len(docs))
+		}
+	}
 }

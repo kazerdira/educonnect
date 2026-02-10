@@ -15,6 +15,7 @@ import (
 	"educonnect/internal/middleware"
 	"educonnect/pkg/cache"
 	"educonnect/pkg/database"
+	"educonnect/pkg/search"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -33,14 +34,15 @@ var (
 
 // Service handles authentication business logic.
 type Service struct {
-	db    *database.Postgres
-	cache *cache.Redis
-	cfg   *config.Config
+	db     *database.Postgres
+	cache  *cache.Redis
+	cfg    *config.Config
+	search *search.Meilisearch
 }
 
 // NewService creates a new auth service.
-func NewService(db *database.Postgres, cache *cache.Redis, cfg *config.Config) *Service {
-	return &Service{db: db, cache: cache, cfg: cfg}
+func NewService(db *database.Postgres, cache *cache.Redis, cfg *config.Config, search *search.Meilisearch) *Service {
+	return &Service{db: db, cache: cache, cfg: cfg, search: search}
 }
 
 // ─── Registration ───────────────────────────────────────────────
@@ -89,6 +91,18 @@ func (s *Service) RegisterTeacher(ctx context.Context, req RegisterTeacherReques
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
+	}
+
+	// Index in Meilisearch for search
+	if s.search != nil {
+		_ = s.search.IndexTeacher(map[string]interface{}{
+			"id":         userID.String(),
+			"name":       req.FirstName + " " + req.LastName,
+			"first_name": req.FirstName,
+			"last_name":  req.LastName,
+			"wilaya":     req.Wilaya,
+			"bio":        req.Bio,
+		})
 	}
 
 	// Generate tokens

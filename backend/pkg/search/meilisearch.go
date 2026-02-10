@@ -50,7 +50,7 @@ func (m *Meilisearch) configureIndexes() {
 		"rating", "total_sessions", "price_min", "created_at",
 	})
 	teacherIdx.UpdateSearchableAttributes(&[]string{
-		"name", "bio", "subjects", "levels",
+		"name", "first_name", "last_name", "bio", "specializations", "wilaya",
 	})
 
 	// Courses index

@@ -6,6 +6,12 @@ class ApiClient {
   late final Dio dio;
   final SecureStorage secureStorage;
 
+  /// In-memory token cache to avoid async storage read races.
+  String? _cachedAccessToken;
+
+  /// Called when a token refresh fails — the app should force re-login.
+  void Function()? onSessionExpired;
+
   ApiClient({required this.secureStorage}) {
     dio = Dio(
       BaseOptions(
@@ -20,7 +26,7 @@ class ApiClient {
     );
 
     dio.interceptors.addAll([
-      _AuthInterceptor(secureStorage: secureStorage, dio: dio),
+      _AuthInterceptor(apiClient: this, secureStorage: secureStorage, dio: dio),
       LogInterceptor(
         requestBody: true,
         responseBody: true,
@@ -28,21 +34,78 @@ class ApiClient {
       ),
     ]);
   }
+
+  /// Call after login/register to immediately make the token available.
+  void setAccessToken(String? token) {
+    _cachedAccessToken = token;
+  }
+
+  // ── Convenience wrappers ──────────────────────────────────────
+  Future<Response<T>> get<T>(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      dio.get<T>(path, queryParameters: queryParameters, options: options);
+
+  Future<Response<T>> post<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      dio.post<T>(path,
+          data: data, queryParameters: queryParameters, options: options);
+
+  Future<Response<T>> put<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      dio.put<T>(path,
+          data: data, queryParameters: queryParameters, options: options);
+
+  Future<Response<T>> delete<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      dio.delete<T>(path,
+          data: data, queryParameters: queryParameters, options: options);
+
+  Future<Response<T>> patch<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+  }) =>
+      dio.patch<T>(path,
+          data: data, queryParameters: queryParameters, options: options);
 }
 
 class _AuthInterceptor extends Interceptor {
+  final ApiClient apiClient;
   final SecureStorage secureStorage;
   final Dio dio;
 
-  _AuthInterceptor({required this.secureStorage, required this.dio});
+  _AuthInterceptor({
+    required this.apiClient,
+    required this.secureStorage,
+    required this.dio,
+  });
 
   @override
   void onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await secureStorage.getAccessToken();
+    // Use in-memory cache first, fall back to secure storage
+    final token =
+        apiClient._cachedAccessToken ?? await secureStorage.getAccessToken();
     if (token != null) {
+      apiClient._cachedAccessToken = token; // warm cache
       options.headers['Authorization'] = 'Bearer $token';
     }
     handler.next(options);
@@ -54,29 +117,38 @@ class _AuthInterceptor extends Interceptor {
       // Try to refresh the token
       final refreshToken = await secureStorage.getRefreshToken();
       if (refreshToken == null) {
+        print('  [AUTH] No refresh token available — session expired');
+        apiClient.onSessionExpired?.call();
         handler.next(err);
         return;
       }
 
       try {
+        print('  [AUTH] Access token expired, attempting refresh…');
         final response = await Dio().post(
           '${ApiConstants.baseUrl}/auth/refresh',
           data: {'refresh_token': refreshToken},
         );
 
         final data = response.data['data'];
+        final newAccessToken = data['access_token'] as String;
         await secureStorage.saveTokens(
-          accessToken: data['access_token'],
+          accessToken: newAccessToken,
           refreshToken: data['refresh_token'],
         );
+        apiClient._cachedAccessToken = newAccessToken;
+        print('  [AUTH] Token refreshed successfully ✓');
 
         // Retry the original request
         final options = err.requestOptions;
-        options.headers['Authorization'] = 'Bearer ${data['access_token']}';
+        options.headers['Authorization'] = 'Bearer $newAccessToken';
         final retryResponse = await dio.fetch(options);
         handler.resolve(retryResponse);
-      } catch (_) {
+      } catch (e) {
+        print('  [AUTH] Token refresh failed: $e — forcing re-login');
+        apiClient._cachedAccessToken = null;
         await secureStorage.clearTokens();
+        apiClient.onSessionExpired?.call();
         handler.next(err);
       }
     } else {

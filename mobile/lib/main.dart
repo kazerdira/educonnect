@@ -36,7 +36,6 @@ class _EduConnectAppState extends State<EduConnectApp> {
   @override
   void dispose() {
     _router.dispose();
-    _authBloc.close();
     super.dispose();
   }
 

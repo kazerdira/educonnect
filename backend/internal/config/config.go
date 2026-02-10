@@ -150,7 +150,7 @@ func Load() (*Config, error) {
 		},
 		JWT: JWTConfig{
 			Secret:        getEnv("JWT_SECRET", "your_jwt_secret_key_change_in_production"),
-			AccessExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
+			AccessExpiry:  getEnvDuration("JWT_ACCESS_EXPIRY", 24*time.Hour),
 			RefreshExpiry: getEnvDuration("JWT_REFRESH_EXPIRY", 30*24*time.Hour),
 		},
 		SMS: SMSConfig{

@@ -1,10 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:educonnect/core/di/injection.dart';
 import 'package:educonnect/features/auth/presentation/bloc/auth_bloc.dart';
-import 'package:educonnect/features/home/presentation/pages/home_page.dart';
-import 'package:educonnect/features/home/presentation/pages/sessions_tab.dart';
 import 'package:educonnect/features/home/presentation/pages/profile_page.dart';
+import 'package:educonnect/features/teacher/presentation/bloc/teacher_bloc.dart';
+import 'package:educonnect/features/teacher/presentation/pages/teacher_dashboard_page.dart';
+import 'package:educonnect/features/search/presentation/bloc/search_bloc.dart';
+import 'package:educonnect/features/search/presentation/pages/search_page.dart';
+import 'package:educonnect/features/session/presentation/bloc/session_bloc.dart';
+import 'package:educonnect/features/session/presentation/pages/session_list_page.dart';
+import 'package:educonnect/features/parent/presentation/bloc/parent_bloc.dart';
+import 'package:educonnect/features/parent/presentation/pages/parent_dashboard_page.dart';
+import 'package:educonnect/features/parent/presentation/pages/children_list_page.dart';
+import 'package:educonnect/features/course/presentation/bloc/course_bloc.dart';
+import 'package:educonnect/features/course/presentation/pages/course_list_page.dart';
+import 'package:educonnect/features/student/presentation/bloc/student_bloc.dart';
+import 'package:educonnect/features/student/presentation/pages/student_dashboard_page.dart';
+import 'package:educonnect/features/admin/presentation/bloc/admin_bloc.dart';
+import 'package:educonnect/features/admin/presentation/pages/admin_dashboard_page.dart';
+import 'package:educonnect/features/admin/presentation/pages/admin_users_page.dart';
+import 'package:educonnect/features/admin/presentation/pages/admin_verifications_page.dart';
+import 'package:educonnect/features/admin/presentation/pages/admin_disputes_page.dart';
 
 class ShellPage extends StatefulWidget {
   const ShellPage({super.key});
@@ -20,7 +37,15 @@ class _ShellPageState extends State<ShellPage> {
   Widget build(BuildContext context) {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
-        final role = state is AuthAuthenticated ? state.user.role : 'student';
+        // Don't render any tab content when unauthenticated
+        // (avoids firing API calls without a token during logout)
+        if (state is! AuthAuthenticated) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final role = state.user.role;
         final tabs = _tabsForRole(role);
 
         // Reset index if it's out of range (e.g. role changed)
@@ -51,15 +76,21 @@ class _ShellPageState extends State<ShellPage> {
       case 'teacher':
         return [
           _TabConfig(
-            page: const HomePage(),
+            page: BlocProvider(
+              create: (_) => getIt<TeacherBloc>(),
+              child: const TeacherDashboardPage(),
+            ),
             navItem: const BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Accueil',
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Tableau de bord',
             ),
           ),
           _TabConfig(
-            page: const SessionsTab(),
+            page: BlocProvider(
+              create: (_) => getIt<SessionBloc>(),
+              child: const SessionListPage(),
+            ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.video_camera_front_outlined),
               activeIcon: Icon(Icons.video_camera_front),
@@ -67,9 +98,9 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: const _PlaceholderTab(
-              icon: Icons.menu_book_outlined,
-              label: 'Gérez vos cours et ressources',
+            page: BlocProvider(
+              create: (_) => getIt<CourseBloc>(),
+              child: const CourseListPage(),
             ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.menu_book_outlined),
@@ -90,7 +121,10 @@ class _ShellPageState extends State<ShellPage> {
       case 'parent':
         return [
           _TabConfig(
-            page: const HomePage(),
+            page: BlocProvider(
+              create: (_) => getIt<ParentBloc>(),
+              child: const ParentDashboardPage(),
+            ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
@@ -98,9 +132,9 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: const _PlaceholderTab(
-              icon: Icons.child_care_outlined,
-              label: 'Gérez vos enfants et leur progression',
+            page: BlocProvider(
+              create: (_) => getIt<ParentBloc>(),
+              child: const ChildrenListPage(),
             ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.child_care_outlined),
@@ -109,9 +143,9 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: const _PlaceholderTab(
-              icon: Icons.search,
-              label: 'Recherchez des enseignants',
+            page: BlocProvider(
+              create: (_) => getIt<SearchBloc>(),
+              child: const SearchPage(),
             ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),
@@ -129,10 +163,61 @@ class _ShellPageState extends State<ShellPage> {
           ),
         ];
 
+      case 'admin':
+        return [
+          _TabConfig(
+            page: BlocProvider(
+              create: (_) => getIt<AdminBloc>(),
+              child: const AdminDashboardPage(),
+            ),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Tableau de bord',
+            ),
+          ),
+          _TabConfig(
+            page: BlocProvider(
+              create: (_) => getIt<AdminBloc>(),
+              child: const AdminUsersPage(),
+            ),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.people_outlined),
+              activeIcon: Icon(Icons.people),
+              label: 'Utilisateurs',
+            ),
+          ),
+          _TabConfig(
+            page: BlocProvider(
+              create: (_) => getIt<AdminBloc>(),
+              child: const AdminVerificationsPage(),
+            ),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.verified_outlined),
+              activeIcon: Icon(Icons.verified),
+              label: 'Vérifications',
+            ),
+          ),
+          _TabConfig(
+            page: BlocProvider(
+              create: (_) => getIt<AdminBloc>(),
+              child: const AdminDisputesPage(),
+            ),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.gavel_outlined),
+              activeIcon: Icon(Icons.gavel),
+              label: 'Litiges',
+            ),
+          ),
+        ];
+
       default: // student
         return [
           _TabConfig(
-            page: const HomePage(),
+            page: BlocProvider(
+              create: (_) => getIt<StudentBloc>(),
+              child: const StudentDashboardPage(),
+            ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
@@ -140,7 +225,10 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: const SessionsTab(),
+            page: BlocProvider(
+              create: (_) => getIt<SessionBloc>(),
+              child: const SessionListPage(showCreateButton: false),
+            ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.video_camera_front_outlined),
               activeIcon: Icon(Icons.video_camera_front),
@@ -148,9 +236,9 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: const _PlaceholderTab(
-              icon: Icons.search,
-              label: 'Trouvez des enseignants et des cours',
+            page: BlocProvider(
+              create: (_) => getIt<SearchBloc>(),
+              child: const SearchPage(),
             ),
             navItem: const BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),

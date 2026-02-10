@@ -1,6 +1,5 @@
 import 'package:educonnect/core/network/api_client.dart';
 import 'package:educonnect/core/network/api_constants.dart';
-import 'package:educonnect/features/auth/data/models/user_model.dart';
 
 class AuthRemoteDataSource {
   final ApiClient apiClient;
@@ -15,7 +14,9 @@ class AuthRemoteDataSource {
       ApiConstants.login,
       data: {'email': email, 'password': password},
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null) throw Exception('Login failed: no data in response');
+    return data;
   }
 
   Future<Map<String, dynamic>> registerTeacher({
@@ -41,7 +42,10 @@ class AuthRemoteDataSource {
         if (experienceYears != null) 'experience_years': experienceYears,
       },
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null)
+      throw Exception('Registration failed: no data in response');
+    return data;
   }
 
   Future<Map<String, dynamic>> registerParent({
@@ -63,7 +67,10 @@ class AuthRemoteDataSource {
         'wilaya': wilaya,
       },
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null)
+      throw Exception('Registration failed: no data in response');
+    return data;
   }
 
   Future<Map<String, dynamic>> registerStudent({
@@ -91,7 +98,10 @@ class AuthRemoteDataSource {
         if (dateOfBirth != null) 'date_of_birth': dateOfBirth,
       },
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null)
+      throw Exception('Registration failed: no data in response');
+    return data;
   }
 
   Future<void> sendOtp({required String phone}) async {
@@ -106,7 +116,9 @@ class AuthRemoteDataSource {
       ApiConstants.verifyOtp,
       data: {'phone': phone, 'code': code},
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null) throw Exception('OTP verification failed: no data');
+    return data;
   }
 
   Future<Map<String, dynamic>> refreshToken({
@@ -116,6 +128,8 @@ class AuthRemoteDataSource {
       ApiConstants.refreshToken,
       data: {'refresh_token': refreshToken},
     );
-    return response.data['data'] as Map<String, dynamic>;
+    final data = response.data['data'] as Map<String, dynamic>?;
+    if (data == null) throw Exception('Token refresh failed: no data');
+    return data;
   }
 }

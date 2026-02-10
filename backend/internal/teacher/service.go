@@ -88,6 +88,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, req UpdateTe
 	if err == nil && s.search != nil {
 		_ = s.search.IndexTeacher(map[string]interface{}{
 			"id":              profile.UserID.String(),
+			"name":            profile.FirstName + " " + profile.LastName,
 			"first_name":      profile.FirstName,
 			"last_name":       profile.LastName,
 			"wilaya":          profile.Wilaya,
