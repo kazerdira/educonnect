@@ -140,9 +140,7 @@ class _TeacherOfferingsPageState extends State<TeacherOfferingsPage>
             ),
             SizedBox(height: 12.h),
             Text(
-              isActiveTab
-                  ? 'Aucune offre active'
-                  : 'Aucune offre désactivée',
+              isActiveTab ? 'Aucune offre active' : 'Aucune offre désactivée',
               style: TextStyle(fontSize: 16.sp, color: Colors.grey[500]),
             ),
             SizedBox(height: 8.h),

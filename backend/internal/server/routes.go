@@ -114,6 +114,41 @@ func (s *Server) setupRoutes() {
 		sessions.PUT("/:id/reschedule", s.handleRescheduleSession())
 		sessions.POST("/:id/end", s.handleEndSession())
 		sessions.GET("/:id/recording", s.handleGetRecording())
+
+		// ── Session Series (NEW) ────────────────────────────────
+		series := sessions.Group("/series")
+		{
+			series.POST("", s.seriesHandler.CreateSeries)
+			series.GET("", s.seriesHandler.ListSeries)
+			series.GET("/:id", s.seriesHandler.GetSeries)
+			series.POST("/:id/sessions", s.seriesHandler.AddSessions)
+			series.POST("/:id/finalize", s.seriesHandler.FinalizeSeries)
+
+			// Teacher invites students
+			series.POST("/:id/invite", s.seriesHandler.InviteStudents)
+			series.GET("/:id/requests", s.seriesHandler.ListRequests)
+			series.PUT("/:id/requests/:enrollmentId/accept", s.seriesHandler.AcceptRequest)
+			series.PUT("/:id/requests/:enrollmentId/decline", s.seriesHandler.DeclineRequest)
+			series.DELETE("/:id/students/:studentId", s.seriesHandler.RemoveStudent)
+
+			// Student requests to join
+			series.POST("/:id/request", s.seriesHandler.RequestToJoin)
+		}
+	}
+
+	// ── Invitations (student view) ──────────────────────────────
+	invitations := protected.Group("/invitations")
+	{
+		invitations.GET("", s.seriesHandler.ListInvitations)
+		invitations.PUT("/:id/accept", s.seriesHandler.AcceptInvitation)
+		invitations.PUT("/:id/decline", s.seriesHandler.DeclineInvitation)
+	}
+
+	// ── Platform Fees (teacher view) ────────────────────────────
+	fees := protected.Group("/fees")
+	{
+		fees.GET("/pending", s.seriesHandler.ListPendingFees)
+		fees.POST("/:id/confirm", s.seriesHandler.ConfirmPayment)
 	}
 
 	// ── Course routes ───────────────────────────────────────────
@@ -213,5 +248,8 @@ func (s *Server) setupRoutes() {
 
 		admin.PUT("/config/subjects", s.handleAdminUpdateSubjects())
 		admin.PUT("/config/levels", s.handleAdminUpdateLevels())
+
+		// Platform fees verification
+		admin.PUT("/fees/:id/verify", s.seriesHandler.AdminVerifyPayment)
 	}
 }

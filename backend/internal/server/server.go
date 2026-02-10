@@ -18,6 +18,7 @@ import (
 	"educonnect/internal/review"
 	searchmod "educonnect/internal/search"
 	"educonnect/internal/session"
+	"educonnect/internal/sessionseries"
 	"educonnect/internal/student"
 	"educonnect/internal/teacher"
 	"educonnect/internal/user"
@@ -61,6 +62,7 @@ type Server struct {
 	notificationHandler *notification.Handler
 	paymentHandler      *payment.Handler
 	adminHandler        *admin.Handler
+	seriesHandler       *sessionseries.Handler
 }
 
 // New creates a new Server instance and sets up routes.
@@ -114,6 +116,9 @@ func New(deps *Dependencies) *Server {
 	adminService := admin.NewService(deps.DB)
 	adminHandler := admin.NewHandler(adminService)
 
+	seriesService := sessionseries.NewService(deps.DB, deps.LiveKit)
+	seriesHandler := sessionseries.NewHandler(seriesService)
+
 	s := &Server{
 		router:              router,
 		deps:                deps,
@@ -131,6 +136,7 @@ func New(deps *Dependencies) *Server {
 		notificationHandler: notificationHandler,
 		paymentHandler:      paymentHandler,
 		adminHandler:        adminHandler,
+		seriesHandler:       seriesHandler,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf(":%s", deps.Config.App.Port),
 			Handler: router,
