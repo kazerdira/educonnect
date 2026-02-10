@@ -3,8 +3,37 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:educonnect/core/di/injection.dart';
+import 'package:educonnect/core/network/api_client.dart';
+import 'package:educonnect/core/network/api_constants.dart';
 import 'package:educonnect/features/teacher/presentation/bloc/teacher_bloc.dart';
 
+// ─── Lightweight models for the dropdowns ─────────────────────
+class _SubjectItem {
+  final String id;
+  final String nameFr;
+  final String category;
+  const _SubjectItem({
+    required this.id,
+    required this.nameFr,
+    required this.category,
+  });
+}
+
+class _LevelItem {
+  final String id;
+  final String name;
+  final String code;
+  final String cycle;
+  const _LevelItem({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.cycle,
+  });
+}
+
+// ─── Page ─────────────────────────────────────────────────────
 class CreateOfferingPage extends StatefulWidget {
   const CreateOfferingPage({super.key});
 
@@ -14,8 +43,6 @@ class CreateOfferingPage extends StatefulWidget {
 
 class _CreateOfferingPageState extends State<CreateOfferingPage> {
   final _formKey = GlobalKey<FormState>();
-  final _subjectIdController = TextEditingController();
-  final _levelIdController = TextEditingController();
   final _priceController = TextEditingController();
   final _maxStudentsController = TextEditingController(text: '1');
   final _trialDurationController = TextEditingController(text: '0');
@@ -23,14 +50,97 @@ class _CreateOfferingPageState extends State<CreateOfferingPage> {
   String _sessionType = 'one_on_one';
   bool _freeTrialEnabled = false;
 
+  // Dropdown data
+  List<_SubjectItem> _subjects = [];
+  List<_LevelItem> _levels = [];
+  _SubjectItem? _selectedSubject;
+  _LevelItem? _selectedLevel;
+  bool _loadingLookups = true;
+  String? _lookupError;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLookups();
+  }
+
+  Future<void> _fetchLookups() async {
+    try {
+      final api = getIt<ApiClient>();
+      final results = await Future.wait([
+        api.dio.get(ApiConstants.subjects),
+        api.dio.get(ApiConstants.levels),
+      ]);
+
+      final subjectsData = results[0].data['data'] as List<dynamic>? ?? [];
+      final levelsData = results[1].data['data'] as List<dynamic>? ?? [];
+
+      setState(() {
+        _subjects = subjectsData
+            .map((e) => _SubjectItem(
+                  id: e['id'] as String? ?? '',
+                  nameFr: e['name_fr'] as String? ?? '',
+                  category: e['category'] as String? ?? '',
+                ))
+            .toList();
+
+        _levels = levelsData
+            .map((e) => _LevelItem(
+                  id: e['id'] as String? ?? '',
+                  name: e['name'] as String? ?? '',
+                  code: e['code'] as String? ?? '',
+                  cycle: e['cycle'] as String? ?? '',
+                ))
+            .toList();
+
+        _loadingLookups = false;
+      });
+    } catch (e) {
+      setState(() {
+        _lookupError = 'Impossible de charger les matières et niveaux';
+        _loadingLookups = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
-    _subjectIdController.dispose();
-    _levelIdController.dispose();
     _priceController.dispose();
     _maxStudentsController.dispose();
     _trialDurationController.dispose();
     super.dispose();
+  }
+
+  // Group subjects by category for better UX
+  String _categoryLabel(String cat) {
+    switch (cat) {
+      case 'languages':
+        return 'Langues';
+      case 'sciences':
+        return 'Sciences';
+      case 'humanities':
+        return 'Lettres & Humanités';
+      case 'technical':
+        return 'Technique';
+      case 'business':
+        return 'Gestion & Économie';
+      default:
+        return 'Autre';
+    }
+  }
+
+  // Group levels by cycle for better UX
+  String _cycleLabel(String cycle) {
+    switch (cycle) {
+      case 'primaire':
+        return 'Primaire';
+      case 'cem':
+        return 'CEM (Moyen)';
+      case 'lycee':
+        return 'Lycée';
+      default:
+        return cycle;
+    }
   }
 
   @override
@@ -56,198 +166,247 @@ class _CreateOfferingPageState extends State<CreateOfferingPage> {
             );
           }
         },
-        child: BlocBuilder<TeacherBloc, TeacherState>(
-          builder: (context, state) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Subject ID
-                    Text(
-                      'ID de la matière',
-                      style: TextStyle(
-                          fontSize: 14.sp, fontWeight: FontWeight.w600),
-                    ),
-                    SizedBox(height: 8.h),
-                    TextFormField(
-                      controller: _subjectIdController,
-                      decoration: const InputDecoration(
-                        hintText: 'UUID de la matière',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Requis' : null,
-                    ),
-
-                    SizedBox(height: 16.h),
-
-                    // Level ID
-                    Text(
-                      'ID du niveau',
-                      style: TextStyle(
-                          fontSize: 14.sp, fontWeight: FontWeight.w600),
-                    ),
-                    SizedBox(height: 8.h),
-                    TextFormField(
-                      controller: _levelIdController,
-                      decoration: const InputDecoration(
-                        hintText: 'UUID du niveau',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) =>
-                          v == null || v.isEmpty ? 'Requis' : null,
-                    ),
-
-                    SizedBox(height: 16.h),
-
-                    // Session type
-                    Text(
-                      'Type de session',
-                      style: TextStyle(
-                          fontSize: 14.sp, fontWeight: FontWeight.w600),
-                    ),
-                    SizedBox(height: 8.h),
-                    DropdownButtonFormField<String>(
-                      value: _sessionType,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'one_on_one',
-                          child: Text('Individuel'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'group',
-                          child: Text('Groupe'),
+        child: _loadingLookups
+            ? const Center(child: CircularProgressIndicator())
+            : _lookupError != null
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 48.sp, color: Colors.red[300]),
+                        SizedBox(height: 12.h),
+                        Text(_lookupError!),
+                        SizedBox(height: 16.h),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _loadingLookups = true;
+                              _lookupError = null;
+                            });
+                            _fetchLookups();
+                          },
+                          child: const Text('Réessayer'),
                         ),
                       ],
-                      onChanged: (v) {
-                        if (v != null) setState(() => _sessionType = v);
-                      },
                     ),
+                  )
+                : _buildForm(),
+      ),
+    );
+  }
 
-                    SizedBox(height: 16.h),
+  Widget _buildForm() {
+    return BlocBuilder<TeacherBloc, TeacherState>(
+      builder: (context, state) {
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16.w),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Subject dropdown ───────────────────────
+                Text(
+                  'Matière',
+                  style:
+                      TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                DropdownButtonFormField<_SubjectItem>(
+                  value: _selectedSubject,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Choisir une matière',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _subjects.map((s) {
+                    return DropdownMenuItem<_SubjectItem>(
+                      value: s,
+                      child: Text(
+                        '${s.nameFr}  (${_categoryLabel(s.category)})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedSubject = v),
+                  validator: (v) => v == null ? 'Requis' : null,
+                ),
 
-                    // Price
-                    Text(
-                      'Prix par heure (DA)',
-                      style: TextStyle(
-                          fontSize: 14.sp, fontWeight: FontWeight.w600),
+                SizedBox(height: 16.h),
+
+                // ── Level dropdown ─────────────────────────
+                Text(
+                  'Niveau',
+                  style:
+                      TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                DropdownButtonFormField<_LevelItem>(
+                  value: _selectedLevel,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Choisir un niveau',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _levels.map((l) {
+                    return DropdownMenuItem<_LevelItem>(
+                      value: l,
+                      child: Text(
+                        '${l.name}  (${_cycleLabel(l.cycle)})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedLevel = v),
+                  validator: (v) => v == null ? 'Requis' : null,
+                ),
+
+                SizedBox(height: 16.h),
+
+                // ── Session type ───────────────────────────
+                Text(
+                  'Type de session',
+                  style:
+                      TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                DropdownButtonFormField<String>(
+                  value: _sessionType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'one_on_one',
+                      child: Text('Individuel'),
                     ),
-                    SizedBox(height: 8.h),
-                    TextFormField(
-                      controller: _priceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        hintText: 'Ex: 1500',
-                        border: OutlineInputBorder(),
-                        suffixText: 'DA',
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Requis';
-                        final n = double.tryParse(v);
-                        if (n == null || n <= 0) return 'Montant invalide';
-                        return null;
-                      },
-                    ),
-
-                    if (_sessionType == 'group') ...[
-                      SizedBox(height: 16.h),
-                      Text(
-                        'Nombre max d\'étudiants',
-                        style: TextStyle(
-                            fontSize: 14.sp, fontWeight: FontWeight.w600),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextFormField(
-                        controller: _maxStudentsController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Requis';
-                          final n = int.tryParse(v);
-                          if (n == null || n < 1 || n > 50) {
-                            return 'Entre 1 et 50';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-
-                    SizedBox(height: 16.h),
-
-                    // Free trial
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Essai gratuit'),
-                      subtitle: const Text(
-                        'Permettre un premier cours d\'essai gratuit',
-                      ),
-                      value: _freeTrialEnabled,
-                      onChanged: (v) => setState(() => _freeTrialEnabled = v),
-                    ),
-
-                    if (_freeTrialEnabled) ...[
-                      SizedBox(height: 8.h),
-                      Text(
-                        'Durée de l\'essai (minutes)',
-                        style: TextStyle(
-                            fontSize: 14.sp, fontWeight: FontWeight.w600),
-                      ),
-                      SizedBox(height: 8.h),
-                      TextFormField(
-                        controller: _trialDurationController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          hintText: 'Ex: 30',
-                          border: OutlineInputBorder(),
-                          suffixText: 'min',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Requis';
-                          final n = int.tryParse(v);
-                          if (n == null || n < 0 || n > 60) {
-                            return 'Entre 0 et 60 min';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-
-                    SizedBox(height: 32.h),
-
-                    // Submit
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48.h,
-                      child: ElevatedButton(
-                        onPressed: state is TeacherLoading ? null : _submit,
-                        child: state is TeacherLoading
-                            ? SizedBox(
-                                height: 20.h,
-                                width: 20.h,
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text('Créer l\'offre'),
-                      ),
+                    DropdownMenuItem(
+                      value: 'group',
+                      child: Text('Groupe'),
                     ),
                   ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _sessionType = v);
+                  },
                 ),
-              ),
-            );
-          },
-        ),
-      ),
+
+                SizedBox(height: 16.h),
+
+                // ── Price ──────────────────────────────────
+                Text(
+                  'Prix par heure (DA)',
+                  style:
+                      TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                ),
+                SizedBox(height: 8.h),
+                TextFormField(
+                  controller: _priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex: 1500',
+                    border: OutlineInputBorder(),
+                    suffixText: 'DA',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Requis';
+                    final n = double.tryParse(v);
+                    if (n == null || n <= 0) return 'Montant invalide';
+                    return null;
+                  },
+                ),
+
+                if (_sessionType == 'group') ...[
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Nombre max d\'étudiants',
+                    style:
+                        TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8.h),
+                  TextFormField(
+                    controller: _maxStudentsController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Requis';
+                      final n = int.tryParse(v);
+                      if (n == null || n < 1 || n > 50) {
+                        return 'Entre 1 et 50';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+
+                SizedBox(height: 16.h),
+
+                // ── Free trial ─────────────────────────────
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Essai gratuit'),
+                  subtitle: const Text(
+                    'Permettre un premier cours d\'essai gratuit',
+                  ),
+                  value: _freeTrialEnabled,
+                  onChanged: (v) => setState(() => _freeTrialEnabled = v),
+                ),
+
+                if (_freeTrialEnabled) ...[
+                  SizedBox(height: 8.h),
+                  Text(
+                    'Durée de l\'essai (minutes)',
+                    style:
+                        TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8.h),
+                  TextFormField(
+                    controller: _trialDurationController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Ex: 30',
+                      border: OutlineInputBorder(),
+                      suffixText: 'min',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return 'Requis';
+                      final n = int.tryParse(v);
+                      if (n == null || n < 0 || n > 60) {
+                        return 'Entre 0 et 60 min';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+
+                SizedBox(height: 32.h),
+
+                // ── Submit ─────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 48.h,
+                  child: ElevatedButton(
+                    onPressed: state is TeacherLoading ? null : _submit,
+                    child: state is TeacherLoading
+                        ? SizedBox(
+                            height: 20.h,
+                            width: 20.h,
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Créer l\'offre'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -256,8 +415,8 @@ class _CreateOfferingPageState extends State<CreateOfferingPage> {
 
     context.read<TeacherBloc>().add(
           TeacherOfferingCreateRequested(
-            subjectId: _subjectIdController.text.trim(),
-            levelId: _levelIdController.text.trim(),
+            subjectId: _selectedSubject!.id,
+            levelId: _selectedLevel!.id,
             sessionType: _sessionType,
             pricePerHour: double.parse(_priceController.text.trim()),
             maxStudents: _sessionType == 'group'

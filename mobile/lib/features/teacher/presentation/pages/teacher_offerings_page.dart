@@ -13,11 +13,21 @@ class TeacherOfferingsPage extends StatefulWidget {
   State<TeacherOfferingsPage> createState() => _TeacherOfferingsPageState();
 }
 
-class _TeacherOfferingsPageState extends State<TeacherOfferingsPage> {
+class _TeacherOfferingsPageState extends State<TeacherOfferingsPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     context.read<TeacherBloc>().add(TeacherOfferingsRequested());
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -27,6 +37,13 @@ class _TeacherOfferingsPageState extends State<TeacherOfferingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mes offres'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Actives'),
+            Tab(text: 'Désactivées'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'offerings_fab',
@@ -43,8 +60,19 @@ class _TeacherOfferingsPageState extends State<TeacherOfferingsPage> {
               ),
             );
             context.read<TeacherBloc>().add(TeacherOfferingsRequested());
-          } else if (state is TeacherOfferingCreated ||
-              state is TeacherOfferingUpdated) {
+          } else if (state is TeacherOfferingUpdated) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  state.offering.isActive
+                      ? 'Offre activée'
+                      : 'Offre désactivée',
+                ),
+                backgroundColor: Colors.green,
+              ),
+            );
+            context.read<TeacherBloc>().add(TeacherOfferingsRequested());
+          } else if (state is TeacherOfferingCreated) {
             context.read<TeacherBloc>().add(TeacherOfferingsRequested());
           }
         },
@@ -72,45 +100,72 @@ class _TeacherOfferingsPageState extends State<TeacherOfferingsPage> {
           }
 
           if (state is TeacherOfferingsLoaded) {
-            if (state.offerings.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.library_books_outlined,
-                        size: 64.sp, color: Colors.grey[400]),
-                    SizedBox(height: 12.h),
-                    Text(
-                      'Aucune offre pour le moment',
-                      style:
-                          TextStyle(fontSize: 16.sp, color: Colors.grey[500]),
-                    ),
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Créez votre première offre pour commencer',
-                      style:
-                          TextStyle(fontSize: 13.sp, color: Colors.grey[400]),
-                    ),
-                  ],
-                ),
-              );
-            }
+            final activeOfferings =
+                state.offerings.where((o) => o.isActive).toList();
+            final inactiveOfferings =
+                state.offerings.where((o) => !o.isActive).toList();
 
-            return RefreshIndicator(
-              onRefresh: () async {
-                context.read<TeacherBloc>().add(TeacherOfferingsRequested());
-              },
-              child: ListView.builder(
-                padding: EdgeInsets.all(16.w),
-                itemCount: state.offerings.length,
-                itemBuilder: (context, index) {
-                  return _offeringCard(state.offerings[index], theme);
-                },
-              ),
+            return TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOfferingsList(activeOfferings, theme, isActiveTab: true),
+                _buildOfferingsList(inactiveOfferings, theme,
+                    isActiveTab: false),
+              ],
             );
           }
 
           return const SizedBox.shrink();
+        },
+      ),
+    );
+  }
+
+  Widget _buildOfferingsList(
+    List<Offering> offerings,
+    ThemeData theme, {
+    required bool isActiveTab,
+  }) {
+    if (offerings.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActiveTab
+                  ? Icons.library_books_outlined
+                  : Icons.pause_circle_outline,
+              size: 64.sp,
+              color: Colors.grey[400],
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              isActiveTab
+                  ? 'Aucune offre active'
+                  : 'Aucune offre désactivée',
+              style: TextStyle(fontSize: 16.sp, color: Colors.grey[500]),
+            ),
+            SizedBox(height: 8.h),
+            Text(
+              isActiveTab
+                  ? 'Créez une offre pour commencer'
+                  : 'Les offres désactivées apparaîtront ici',
+              style: TextStyle(fontSize: 13.sp, color: Colors.grey[400]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        context.read<TeacherBloc>().add(TeacherOfferingsRequested());
+      },
+      child: ListView.builder(
+        padding: EdgeInsets.all(16.w),
+        itemCount: offerings.length,
+        itemBuilder: (context, index) {
+          return _offeringCard(offerings[index], theme);
         },
       ),
     );
@@ -216,9 +271,13 @@ class _TeacherOfferingsPageState extends State<TeacherOfferingsPage> {
                         ? Icons.pause_circle_outline
                         : Icons.play_circle_outline,
                     size: 18.sp,
+                    color: offering.isActive ? Colors.orange : Colors.green,
                   ),
                   label: Text(
                     offering.isActive ? 'Désactiver' : 'Activer',
+                    style: TextStyle(
+                      color: offering.isActive ? Colors.orange : Colors.green,
+                    ),
                   ),
                 ),
                 TextButton.icon(

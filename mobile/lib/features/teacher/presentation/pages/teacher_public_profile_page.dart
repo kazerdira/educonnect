@@ -78,7 +78,8 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
                               : null,
                       child: p.avatarUrl == null || p.avatarUrl!.isEmpty
                           ? Text(
-                              '${p.firstName[0]}${p.lastName[0]}'.toUpperCase(),
+                              '${p.firstName.isNotEmpty ? p.firstName[0] : ''}${p.lastName.isNotEmpty ? p.lastName[0] : ''}'
+                                  .toUpperCase(),
                               style: TextStyle(
                                 fontSize: 32.sp,
                                 color: Colors.white,

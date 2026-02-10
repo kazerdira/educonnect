@@ -100,6 +100,10 @@ class ApiConstants {
   static const String notificationPreferences =
       '/notifications/preferences'; // PUT
 
+  // ── Lookup (public) ──────────────────────────────────────────
+  static const String levels = '/levels'; // GET
+  static const String subjects = '/subjects'; // GET
+
   // ── Search (2 routes) ───────────────────────────────────────
   static const String searchTeachers = '/search/teachers'; // GET
   static const String searchCourses = '/search/courses'; // GET

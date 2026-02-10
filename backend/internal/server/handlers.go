@@ -20,6 +20,71 @@ func notImplemented() gin.HandlerFunc {
 	}
 }
 
+// ─── Lookup (public) ─────────────────────────────────────────
+func (s *Server) handleGetLevels() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rows, err := s.deps.DB.Pool.Query(c.Request.Context(),
+			`SELECT id, name, code, cycle::text, "order" FROM levels ORDER BY "order"`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "failed to fetch levels"}})
+			return
+		}
+		defer rows.Close()
+
+		type lvl struct {
+			ID    string `json:"id"`
+			Name  string `json:"name"`
+			Code  string `json:"code"`
+			Cycle string `json:"cycle"`
+			Order int    `json:"order"`
+		}
+		var result []lvl
+		for rows.Next() {
+			var l lvl
+			if err := rows.Scan(&l.ID, &l.Name, &l.Code, &l.Cycle, &l.Order); err != nil {
+				continue
+			}
+			result = append(result, l)
+		}
+		if result == nil {
+			result = []lvl{}
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
+	}
+}
+
+func (s *Server) handleGetSubjects() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rows, err := s.deps.DB.Pool.Query(c.Request.Context(),
+			`SELECT id, name_fr, name_ar, name_en, category::text FROM subjects ORDER BY category, name_fr`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "failed to fetch subjects"}})
+			return
+		}
+		defer rows.Close()
+
+		type subj struct {
+			ID       string `json:"id"`
+			NameFr   string `json:"name_fr"`
+			NameAr   string `json:"name_ar"`
+			NameEn   string `json:"name_en"`
+			Category string `json:"category"`
+		}
+		var result []subj
+		for rows.Next() {
+			var s subj
+			if err := rows.Scan(&s.ID, &s.NameFr, &s.NameAr, &s.NameEn, &s.Category); err != nil {
+				continue
+			}
+			result = append(result, s)
+		}
+		if result == nil {
+			result = []subj{}
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
+	}
+}
+
 // ─── Auth ────────────────────────────────────────────────────
 func (s *Server) handleRegisterTeacher() gin.HandlerFunc { return s.authHandler.RegisterTeacher }
 func (s *Server) handleRegisterParent() gin.HandlerFunc  { return s.authHandler.RegisterParent }

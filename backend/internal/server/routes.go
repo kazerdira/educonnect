@@ -43,6 +43,10 @@ func (s *Server) setupRoutes() {
 		auth.POST("/reset-password", s.handleResetPassword())
 	}
 
+	// ── Lookup routes (public) ───────────────────────────────────
+	v1.GET("/levels", s.handleGetLevels())
+	v1.GET("/subjects", s.handleGetSubjects())
+
 	// ── Protected routes ────────────────────────────────────────
 	protected := v1.Group("")
 	protected.Use(middleware.Auth(s.deps.Config.JWT.Secret))

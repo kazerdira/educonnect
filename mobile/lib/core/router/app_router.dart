@@ -116,15 +116,6 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
 
         // ── Teacher routes ──────────────────────────────────────
         GoRoute(
-          path: '/teacher/:id',
-          builder: (_, state) => BlocProvider(
-            create: (_) => getIt<TeacherBloc>(),
-            child: TeacherPublicProfilePage(
-              teacherId: state.pathParameters['id']!,
-            ),
-          ),
-        ),
-        GoRoute(
           path: '/teacher/dashboard',
           builder: (_, __) => BlocProvider(
             create: (_) => getIt<TeacherBloc>(),
@@ -164,6 +155,16 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
           builder: (_, __) => BlocProvider(
             create: (_) => getIt<TeacherBloc>(),
             child: const TeacherEarningsPage(),
+          ),
+        ),
+        // Public teacher profile — MUST be after all /teacher/xxx routes
+        GoRoute(
+          path: '/teacher/:id',
+          builder: (_, state) => BlocProvider(
+            create: (_) => getIt<TeacherBloc>(),
+            child: TeacherPublicProfilePage(
+              teacherId: state.pathParameters['id']!,
+            ),
           ),
         ),
 

@@ -149,8 +149,8 @@ func (s *Service) ListOfferings(ctx context.Context, teacherID string) ([]Offeri
 		 FROM offerings o
 		 JOIN subjects s ON s.id = o.subject_id
 		 JOIN levels l ON l.id = o.level_id
-		 WHERE o.teacher_id = $1 AND o.is_active = true
-		 ORDER BY l."order", s.name_fr`, uid,
+		 WHERE o.teacher_id = $1
+		 ORDER BY o.is_active DESC, l."order", s.name_fr`, uid,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list offerings: %w", err)

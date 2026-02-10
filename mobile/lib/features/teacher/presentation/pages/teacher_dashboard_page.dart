@@ -97,7 +97,7 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
                     radius: 30.r,
                     backgroundColor: theme.colorScheme.primary,
                     child: Text(
-                      '${profile.firstName[0]}${profile.lastName[0]}'
+                      '${profile.firstName.isNotEmpty ? profile.firstName[0] : ''}${profile.lastName.isNotEmpty ? profile.lastName[0] : ''}'
                           .toUpperCase(),
                       style: TextStyle(
                         fontSize: 18.sp,
