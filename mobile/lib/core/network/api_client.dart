@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:educonnect/core/storage/secure_storage.dart';
 import 'package:educonnect/core/network/api_constants.dart';
 
@@ -25,14 +26,18 @@ class ApiClient {
       ),
     );
 
-    dio.interceptors.addAll([
+    dio.interceptors.add(
       _AuthInterceptor(apiClient: this, secureStorage: secureStorage, dio: dio),
-      LogInterceptor(
-        requestBody: true,
-        responseBody: true,
-        logPrint: (o) => print('  [API] $o'),
-      ),
-    ]);
+    );
+    if (kDebugMode) {
+      dio.interceptors.add(
+        LogInterceptor(
+          requestBody: true,
+          responseBody: true,
+          logPrint: (o) => debugPrint('  [API] $o'),
+        ),
+      );
+    }
   }
 
   /// Call after login/register to immediately make the token available.
@@ -117,14 +122,16 @@ class _AuthInterceptor extends Interceptor {
       // Try to refresh the token
       final refreshToken = await secureStorage.getRefreshToken();
       if (refreshToken == null) {
-        print('  [AUTH] No refresh token available — session expired');
+        if (kDebugMode)
+          debugPrint('  [AUTH] No refresh token available — session expired');
         apiClient.onSessionExpired?.call();
         handler.next(err);
         return;
       }
 
       try {
-        print('  [AUTH] Access token expired, attempting refresh…');
+        if (kDebugMode)
+          debugPrint('  [AUTH] Access token expired, attempting refresh…');
         final response = await Dio().post(
           '${ApiConstants.baseUrl}/auth/refresh',
           data: {'refresh_token': refreshToken},
@@ -137,7 +144,7 @@ class _AuthInterceptor extends Interceptor {
           refreshToken: data['refresh_token'],
         );
         apiClient._cachedAccessToken = newAccessToken;
-        print('  [AUTH] Token refreshed successfully ✓');
+        if (kDebugMode) debugPrint('  [AUTH] Token refreshed successfully ✓');
 
         // Retry the original request
         final options = err.requestOptions;
@@ -145,7 +152,8 @@ class _AuthInterceptor extends Interceptor {
         final retryResponse = await dio.fetch(options);
         handler.resolve(retryResponse);
       } catch (e) {
-        print('  [AUTH] Token refresh failed: $e — forcing re-login');
+        if (kDebugMode)
+          debugPrint('  [AUTH] Token refresh failed: $e — forcing re-login');
         apiClient._cachedAccessToken = null;
         await secureStorage.clearTokens();
         apiClient.onSessionExpired?.call();

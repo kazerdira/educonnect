@@ -2,6 +2,7 @@ import 'package:educonnect/features/payment/domain/entities/payment.dart';
 
 abstract class PaymentRepository {
   Future<Transaction> initiatePayment({
+    required String payeeId,
     String? sessionId,
     String? courseId,
     required double amount,
@@ -10,8 +11,8 @@ abstract class PaymentRepository {
   });
 
   Future<Transaction> confirmPayment({
-    required String transactionRef,
-    String? receiptUrl,
+    required String transactionId,
+    required String providerReference,
   });
 
   Future<List<Transaction>> getPaymentHistory();
@@ -19,18 +20,17 @@ abstract class PaymentRepository {
   Future<Transaction> refundPayment(
     String transactionId, {
     required String reason,
-    double? amount,
-    required bool fullRefund,
+    required double amount,
   });
 
   Future<Subscription> createSubscription({
     required String teacherId,
     required String planType,
-    required double amount,
-    required String currency,
-    required String paymentMethod,
-    required bool autoRenew,
-    String? startDate,
+    required int sessionsPerMonth,
+    required double price,
+    required String startDate,
+    required String endDate,
+    bool? autoRenew,
   });
 
   Future<List<Subscription>> getSubscriptions();

@@ -7,6 +7,22 @@ class SearchRemoteDataSource {
 
   SearchRemoteDataSource({required this.apiClient});
 
+  /// Parse search response: {data: [...hits], meta: {total, page, limit, processing_time_ms}}
+  SearchResultModel _parseSearchResponse(dynamic responseData) {
+    final hits = responseData['data'];
+    final meta = responseData['meta'] as Map<String, dynamic>? ?? {};
+
+    final hitsList = (hits is List) ? hits : <dynamic>[];
+
+    return SearchResultModel(
+      hits: hitsList,
+      totalHits: meta['total'] as int? ?? hitsList.length,
+      page: meta['page'] as int? ?? 1,
+      limit: meta['limit'] as int? ?? 20,
+      processingTimeMs: meta['processing_time_ms'] as int? ?? 0,
+    );
+  }
+
   Future<SearchResultModel> searchTeachers({
     required String query,
     String? subject,
@@ -20,7 +36,7 @@ class SearchRemoteDataSource {
     final response = await apiClient.dio.get(
       ApiConstants.searchTeachers,
       queryParameters: {
-        'q': query,
+        if (query.isNotEmpty) 'q': query,
         if (subject != null && subject.isNotEmpty) 'subject': subject,
         if (wilaya != null && wilaya.isNotEmpty) 'wilaya': wilaya,
         if (level != null && level.isNotEmpty) 'level': level,
@@ -30,15 +46,7 @@ class SearchRemoteDataSource {
         'limit': limit,
       },
     );
-    final raw = response.data['data'];
-    if (raw == null) return const SearchResultModel();
-    if (raw is List) {
-      return SearchResultModel(hits: raw, totalHits: raw.length);
-    }
-    if (raw is Map<String, dynamic>) {
-      return SearchResultModel.fromJson(raw);
-    }
-    return const SearchResultModel();
+    return _parseSearchResponse(response.data);
   }
 
   Future<SearchResultModel> searchCourses({
@@ -51,21 +59,13 @@ class SearchRemoteDataSource {
     final response = await apiClient.dio.get(
       ApiConstants.searchCourses,
       queryParameters: {
-        'q': query,
+        if (query.isNotEmpty) 'q': query,
         if (subject != null && subject.isNotEmpty) 'subject': subject,
         if (level != null && level.isNotEmpty) 'level': level,
         'page': page,
         'limit': limit,
       },
     );
-    final raw = response.data['data'];
-    if (raw == null) return const SearchResultModel();
-    if (raw is List) {
-      return SearchResultModel(hits: raw, totalHits: raw.length);
-    }
-    if (raw is Map<String, dynamic>) {
-      return SearchResultModel.fromJson(raw);
-    }
-    return const SearchResultModel();
+    return _parseSearchResponse(response.data);
   }
 }

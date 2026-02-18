@@ -13,6 +13,7 @@ class InitiatePaymentPage extends StatefulWidget {
 
 class _InitiatePaymentPageState extends State<InitiatePaymentPage> {
   final _formKey = GlobalKey<FormState>();
+  final _payeeIdController = TextEditingController();
   final _sessionIdController = TextEditingController();
   final _courseIdController = TextEditingController();
   final _amountController = TextEditingController();
@@ -23,6 +24,7 @@ class _InitiatePaymentPageState extends State<InitiatePaymentPage> {
 
   @override
   void dispose() {
+    _payeeIdController.dispose();
     _sessionIdController.dispose();
     _courseIdController.dispose();
     _amountController.dispose();
@@ -39,6 +41,7 @@ class _InitiatePaymentPageState extends State<InitiatePaymentPage> {
 
     context.read<PaymentBloc>().add(
           InitiatePaymentRequested(
+            payeeId: _payeeIdController.text.trim(),
             sessionId: sessionId.isNotEmpty ? sessionId : null,
             courseId: courseId.isNotEmpty ? courseId : null,
             amount: double.parse(_amountController.text.trim()),
@@ -79,6 +82,22 @@ class _InitiatePaymentPageState extends State<InitiatePaymentPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Payee ID (required)
+                    TextFormField(
+                      controller: _payeeIdController,
+                      decoration: const InputDecoration(
+                        labelText: 'ID du bénéficiaire',
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez entrer l\'identifiant du bénéficiaire';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: 12.h),
+
                     // Session ID (optional)
                     TextFormField(
                       controller: _sessionIdController,

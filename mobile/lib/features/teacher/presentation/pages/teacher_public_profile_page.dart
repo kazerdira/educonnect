@@ -4,11 +4,24 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:educonnect/features/teacher/presentation/bloc/teacher_bloc.dart';
+import 'package:educonnect/features/teacher/domain/entities/offering.dart';
+import 'package:educonnect/features/booking/presentation/widgets/booking_bottom_sheet.dart';
 
 /// Public teacher profile page visible to students/parents from search results.
 class TeacherPublicProfilePage extends StatefulWidget {
-  const TeacherPublicProfilePage({super.key, required this.teacherId});
+  const TeacherPublicProfilePage({
+    super.key,
+    required this.teacherId,
+    this.forChildId,
+    this.forChildName,
+  });
   final String teacherId;
+
+  /// If a parent is booking for a child, the child's user ID
+  final String? forChildId;
+
+  /// The child's name for display purposes
+  final String? forChildName;
 
   @override
   State<TeacherPublicProfilePage> createState() =>
@@ -19,9 +32,16 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
   @override
   void initState() {
     super.initState();
+    // Fetch profile AND offerings together
     context
         .read<TeacherBloc>()
-        .add(TeacherProfileRequested(teacherId: widget.teacherId));
+        .add(TeacherPublicOfferingsRequested(teacherId: widget.teacherId));
+  }
+
+  void _refresh() {
+    context
+        .read<TeacherBloc>()
+        .add(TeacherPublicOfferingsRequested(teacherId: widget.teacherId));
   }
 
   @override
@@ -47,8 +67,7 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
                   Text(state.message, textAlign: TextAlign.center),
                   SizedBox(height: 16.h),
                   ElevatedButton(
-                    onPressed: () => context.read<TeacherBloc>().add(
-                        TeacherProfileRequested(teacherId: widget.teacherId)),
+                    onPressed: _refresh,
                     child: const Text('Réessayer'),
                   ),
                 ],
@@ -56,14 +75,13 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
             );
           }
 
-          if (state is TeacherProfileLoaded) {
+          if (state is TeacherPublicProfileLoaded) {
             final p = state.profile;
+            final offerings = state.offerings;
+            final availability = state.availability;
+
             return RefreshIndicator(
-              onRefresh: () async {
-                context
-                    .read<TeacherBloc>()
-                    .add(TeacherProfileRequested(teacherId: widget.teacherId));
-              },
+              onRefresh: () async => _refresh(),
               child: ListView(
                 padding: EdgeInsets.all(16.w),
                 children: [
@@ -141,6 +159,16 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
 
                   SizedBox(height: 20.h),
 
+                  // ── Offerings ─────────────────────────────────
+                  if (offerings.isNotEmpty) ...[
+                    Text('Ce que je propose',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    SizedBox(height: 12.h),
+                    ...offerings.map((o) => _offeringCard(theme, o)),
+                    SizedBox(height: 12.h),
+                  ],
+
                   // ── Bio ───────────────────────────────────────
                   if (p.bio.isNotEmpty) ...[
                     Text('À propos',
@@ -189,6 +217,21 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
                     width: double.infinity,
                     height: 48.h,
                     child: ElevatedButton.icon(
+                      icon: const Icon(Icons.calendar_month),
+                      label: const Text('Réserver une séance'),
+                      onPressed: () => _showBookingSheet(
+                        p.userId,
+                        '${p.firstName} ${p.lastName}',
+                        offerings,
+                        availability,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12.h),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48.h,
+                    child: OutlinedButton.icon(
                       icon: const Icon(Icons.rate_review),
                       label: const Text('Voir les avis'),
                       onPressed: () =>
@@ -200,8 +243,101 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
             );
           }
 
+          // Fallback for old TeacherProfileLoaded state
+          if (state is TeacherProfileLoaded) {
+            // Trigger the new event to also get offerings
+            WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+            return const Center(child: CircularProgressIndicator());
+          }
+
           return const SizedBox.shrink();
         },
+      ),
+    );
+  }
+
+  Widget _offeringCard(ThemeData theme, Offering o) {
+    return Card(
+      margin: EdgeInsets.only(bottom: 10.h),
+      child: Padding(
+        padding: EdgeInsets.all(12.w),
+        child: Row(
+          children: [
+            // Subject icon
+            Container(
+              width: 44.w,
+              height: 44.w,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Icon(
+                o.sessionType == 'group' ? Icons.groups : Icons.person,
+                color: theme.colorScheme.primary,
+                size: 24.sp,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    o.subjectName,
+                    style: TextStyle(
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 2.h),
+                  Row(
+                    children: [
+                      _tagChip(
+                          o.levelCode.isNotEmpty ? o.levelCode : o.levelName),
+                      SizedBox(width: 6.w),
+                      _tagChip(o.sessionType == 'group'
+                          ? 'Groupe (${o.maxStudents} max)'
+                          : 'Individuel'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Price
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${o.pricePerHour.toStringAsFixed(0)} DA',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green[700],
+                  ),
+                ),
+                Text(
+                  '/heure',
+                  style: TextStyle(fontSize: 11.sp, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tagChip(String text) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 2.h),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(4.r),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 11.sp, color: Colors.grey[700]),
       ),
     );
   }
@@ -257,6 +393,32 @@ class _TeacherPublicProfilePageState extends State<TeacherPublicProfilePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showBookingSheet(
+    String teacherId,
+    String teacherName,
+    List<Offering> offerings,
+    List<dynamic> availability,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => BookingBottomSheet(
+          teacherId: teacherId,
+          teacherName: teacherName,
+          offerings: offerings,
+          availability: availability.cast(),
+          forChildId: widget.forChildId,
+          forChildName: widget.forChildName,
+        ),
       ),
     );
   }

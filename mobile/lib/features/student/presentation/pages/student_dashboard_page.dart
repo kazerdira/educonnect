@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:educonnect/features/student/presentation/bloc/student_bloc.dart';
@@ -117,6 +118,39 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
 
           SizedBox(height: 20.h),
 
+          // ── Quick Actions ──
+          Text(
+            'Actions rapides',
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Expanded(
+                child: _actionCard(
+                  icon: Icons.pending_actions,
+                  label: 'Mes demandes',
+                  subtitle: 'Séances demandées',
+                  onTap: () => context.push('/student/bookings'),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: _actionCard(
+                  icon: Icons.mail_outline,
+                  label: 'Invitations',
+                  subtitle: 'Séries proposées',
+                  onTap: () => context.push('/invitations'),
+                ),
+              ),
+            ],
+          ),
+
+          SizedBox(height: 20.h),
+
           // ── Recent Sessions ──
           Text(
             'Sessions récentes',
@@ -216,6 +250,43 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
     );
   }
 
+  // ── Action Card ──
+
+  Widget _actionCard({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 12.w),
+          child: Column(
+            children: [
+              Icon(icon, size: 28.sp),
+              SizedBox(height: 8.h),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: 2.h),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 10.sp, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Session Card ──
 
   Widget _sessionCard(StudentSessionBrief session, ThemeData theme) {
@@ -229,9 +300,9 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
         leading: CircleAvatar(
           backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
           child: Icon(
-            session.type == 'live'
-                ? Icons.videocam_outlined
-                : Icons.play_lesson_outlined,
+            session.status == 'scheduled'
+                ? Icons.schedule_outlined
+                : Icons.videocam_outlined,
             color: theme.colorScheme.primary,
           ),
         ),
@@ -289,8 +360,8 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
   // ── Enrollment Card ──
 
   Widget _enrollmentCard(StudentEnrollment enrollment, ThemeData theme) {
-    final progressPct = (enrollment.progress * 100).toStringAsFixed(0);
-    final dateStr = DateFormat('dd MMM yyyy').format(enrollment.enrolledAt);
+    final dateStr =
+        DateFormat('dd MMM yyyy – HH:mm').format(enrollment.startTime);
 
     return Card(
       margin: EdgeInsets.only(bottom: 8.h),
@@ -303,7 +374,7 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
               children: [
                 Expanded(
                   child: Text(
-                    enrollment.courseName,
+                    enrollment.title,
                     style: TextStyle(
                       fontSize: 14.sp,
                       fontWeight: FontWeight.w600,
@@ -330,33 +401,40 @@ class _StudentDashboardPageState extends State<StudentDashboardPage> {
             ),
             SizedBox(height: 8.h),
             Text(
-              'Inscrit le $dateStr',
+              enrollment.teacherName,
               style: TextStyle(fontSize: 12.sp, color: Colors.grey[600]),
             ),
-            SizedBox(height: 10.h),
-            Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4.r),
-                    child: LinearProgressIndicator(
-                      value: enrollment.progress,
-                      minHeight: 6.h,
-                      backgroundColor: Colors.grey[200],
-                      color: theme.colorScheme.primary,
+            SizedBox(height: 4.h),
+            Text(
+              dateStr,
+              style: TextStyle(fontSize: 11.sp, color: Colors.grey[600]),
+            ),
+            if (enrollment.attendance.isNotEmpty) ...[
+              SizedBox(height: 8.h),
+              Row(
+                children: [
+                  Icon(
+                    enrollment.attendance == 'present'
+                        ? Icons.check_circle_outline
+                        : Icons.cancel_outlined,
+                    size: 16.sp,
+                    color: enrollment.attendance == 'present'
+                        ? Colors.green
+                        : Colors.red,
+                  ),
+                  SizedBox(width: 4.w),
+                  Text(
+                    enrollment.attendance == 'present' ? 'Présent' : 'Absent',
+                    style: TextStyle(
+                      fontSize: 12.sp,
+                      color: enrollment.attendance == 'present'
+                          ? Colors.green
+                          : Colors.red,
                     ),
                   ),
-                ),
-                SizedBox(width: 8.w),
-                Text(
-                  '$progressPct%',
-                  style: TextStyle(
-                    fontSize: 12.sp,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

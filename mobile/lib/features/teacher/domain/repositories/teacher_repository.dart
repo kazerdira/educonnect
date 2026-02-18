@@ -19,6 +19,8 @@ abstract class TeacherRepository {
 
   // Offerings
   Future<List<Offering>> listOfferings();
+  Future<List<Offering>> getTeacherOfferings(
+      String teacherId); // Public offerings
   Future<Offering> createOffering({
     required String subjectId,
     required String levelId,

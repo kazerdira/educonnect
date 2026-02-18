@@ -1,3 +1,4 @@
+import 'package:educonnect/core/network/api_error_handler.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/features/teacher/domain/entities/teacher_profile.dart';
@@ -39,6 +40,14 @@ class TeacherProfileUpdateRequested extends TeacherEvent {
 }
 
 class TeacherOfferingsRequested extends TeacherEvent {}
+
+/// Request public offerings for a specific teacher (used in public profile)
+class TeacherPublicOfferingsRequested extends TeacherEvent {
+  final String teacherId;
+  const TeacherPublicOfferingsRequested({required this.teacherId});
+  @override
+  List<Object?> get props => [teacherId];
+}
 
 class TeacherOfferingCreateRequested extends TeacherEvent {
   final String subjectId;
@@ -139,6 +148,20 @@ class TeacherOfferingsLoaded extends TeacherState {
   List<Object?> get props => [offerings];
 }
 
+/// State when teacher profile AND their offerings are loaded together (for public profile view)
+class TeacherPublicProfileLoaded extends TeacherState {
+  final TeacherProfile profile;
+  final List<Offering> offerings;
+  final List<AvailabilitySlot> availability;
+  const TeacherPublicProfileLoaded({
+    required this.profile,
+    required this.offerings,
+    this.availability = const [],
+  });
+  @override
+  List<Object?> get props => [profile, offerings, availability];
+}
+
 class TeacherOfferingCreated extends TeacherState {
   final Offering offering;
   const TeacherOfferingCreated({required this.offering});
@@ -182,6 +205,7 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
   TeacherBloc({required this.teacherRepository}) : super(TeacherInitial()) {
     on<TeacherDashboardRequested>(_onDashboardRequested);
     on<TeacherProfileRequested>(_onProfileRequested);
+    on<TeacherPublicOfferingsRequested>(_onPublicOfferingsRequested);
     on<TeacherProfileUpdateRequested>(_onProfileUpdateRequested);
     on<TeacherOfferingsRequested>(_onOfferingsRequested);
     on<TeacherOfferingCreateRequested>(_onOfferingCreateRequested);
@@ -214,6 +238,28 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
       final profile =
           await teacherRepository.getTeacherProfile(event.teacherId);
       emit(TeacherProfileLoaded(profile: profile));
+    } catch (e) {
+      emit(TeacherError(message: _extractError(e)));
+    }
+  }
+
+  /// Fetch profile AND offerings for public profile page
+  Future<void> _onPublicOfferingsRequested(
+    TeacherPublicOfferingsRequested event,
+    Emitter<TeacherState> emit,
+  ) async {
+    emit(TeacherLoading());
+    try {
+      final results = await Future.wait([
+        teacherRepository.getTeacherProfile(event.teacherId),
+        teacherRepository.getTeacherOfferings(event.teacherId),
+        teacherRepository.getAvailability(event.teacherId),
+      ]);
+      emit(TeacherPublicProfileLoaded(
+        profile: results[0] as TeacherProfile,
+        offerings: results[1] as List<Offering>,
+        availability: results[2] as List<AvailabilitySlot>,
+      ));
     } catch (e) {
       emit(TeacherError(message: _extractError(e)));
     }
@@ -342,17 +388,6 @@ class TeacherBloc extends Bloc<TeacherEvent, TeacherState> {
   }
 
   String _extractError(dynamic e) {
-    if (e is Exception) {
-      final msg = e.toString();
-      // Try to extract DioException message
-      if (msg.contains('DioException')) {
-        final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(msg);
-        if (match != null) return match.group(1)!;
-        final msgMatch = RegExp(r'"message"\s*:\s*"([^"]+)"').firstMatch(msg);
-        if (msgMatch != null) return msgMatch.group(1)!;
-      }
-      return msg.replaceFirst('Exception: ', '');
-    }
-    return 'Une erreur est survenue';
+    return extractApiError(e);
   }
 }

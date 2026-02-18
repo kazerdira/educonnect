@@ -2,10 +2,12 @@ package sessionseries
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"educonnect/internal/middleware"
+	"educonnect/internal/wallet"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -59,6 +61,33 @@ func (h *Handler) ListSeries(c *gin.Context) {
 	}
 
 	series, total, err := h.service.ListTeacherSeries(c.Request.Context(), userID, status, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "internal server error"}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    series,
+		"meta":    gin.H{"page": page, "limit": limit, "total": total, "has_more": int64(page*limit) < total},
+	})
+}
+
+// BrowseSeries GET /sessions/series/browse - public browsing for students/parents
+func (h *Handler) BrowseSeries(c *gin.Context) {
+	userID := middleware.GetUserID(c) // Get current user for enrollment status
+	subjectID := c.Query("subject_id")
+	levelID := c.Query("level_id")
+	sessionType := c.Query("session_type")
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 50 {
+		limit = 20
+	}
+
+	series, total, err := h.service.BrowseAvailableSeries(c.Request.Context(), userID, subjectID, levelID, sessionType, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "internal server error"}})
 		return
@@ -271,12 +300,12 @@ func (h *Handler) FinalizeSeries(c *gin.Context) {
 	seriesID := c.Param("id")
 	userID := middleware.GetUserID(c)
 
-	fee, err := h.service.FinalizeSeries(c.Request.Context(), seriesID, userID)
+	series, err := h.service.FinalizeSeries(c.Request.Context(), seriesID, userID)
 	if err != nil {
 		respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": fee})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": series})
 }
 
 // ListPendingFees GET /fees/pending
@@ -381,6 +410,11 @@ func respondError(c *gin.Context, err error) {
 			"code":    "FEE_NOT_PAID",
 			"message": err.Error(),
 		}})
+	case errors.Is(err, wallet.ErrInsufficientBalance):
+		c.JSON(http.StatusPaymentRequired, gin.H{"success": false, "error": gin.H{
+			"code":    "INSUFFICIENT_BALANCE",
+			"message": err.Error(),
+		}})
 	case errors.Is(err, ErrNotEnrolled):
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": gin.H{
 			"code":    "NOT_ENROLLED",
@@ -391,6 +425,8 @@ func respondError(c *gin.Context, err error) {
 		errors.Is(err, ErrNotFinalized):
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
 	default:
+		// Log the actual error for debugging
+		fmt.Printf("[ERROR] sessionseries: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "internal server error"}})
 	}
 }

@@ -14,9 +14,13 @@ import 'package:educonnect/features/search/data/repositories/search_repository_i
 import 'package:educonnect/features/search/domain/repositories/search_repository.dart';
 import 'package:educonnect/features/search/presentation/bloc/search_bloc.dart';
 import 'package:educonnect/features/session/data/datasources/session_remote_datasource.dart';
+import 'package:educonnect/features/session/data/datasources/series_remote_datasource.dart';
 import 'package:educonnect/features/session/data/repositories/session_repository_impl.dart';
+import 'package:educonnect/features/session/data/repositories/series_repository_impl.dart';
 import 'package:educonnect/features/session/domain/repositories/session_repository.dart';
+import 'package:educonnect/features/session/domain/repositories/series_repository.dart';
 import 'package:educonnect/features/session/presentation/bloc/session_bloc.dart';
+import 'package:educonnect/features/session/presentation/bloc/series_bloc.dart';
 import 'package:educonnect/features/parent/data/datasources/parent_remote_datasource.dart';
 import 'package:educonnect/features/parent/data/repositories/parent_repository_impl.dart';
 import 'package:educonnect/features/parent/domain/repositories/parent_repository.dart';
@@ -53,6 +57,14 @@ import 'package:educonnect/features/admin/data/datasources/admin_remote_datasour
 import 'package:educonnect/features/admin/data/repositories/admin_repository_impl.dart';
 import 'package:educonnect/features/admin/domain/repositories/admin_repository.dart';
 import 'package:educonnect/features/admin/presentation/bloc/admin_bloc.dart';
+import 'package:educonnect/features/booking/data/datasources/booking_remote_datasource.dart';
+import 'package:educonnect/features/booking/data/repositories/booking_repository_impl.dart';
+import 'package:educonnect/features/booking/domain/repositories/booking_repository.dart';
+import 'package:educonnect/features/booking/presentation/bloc/booking_bloc.dart';
+import 'package:educonnect/features/wallet/data/datasources/wallet_remote_datasource.dart';
+import 'package:educonnect/features/wallet/data/repositories/wallet_repository_impl.dart';
+import 'package:educonnect/features/wallet/domain/repositories/wallet_repository.dart';
+import 'package:educonnect/features/wallet/presentation/bloc/wallet_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -116,6 +128,17 @@ Future<void> configureDependencies() async {
   );
   getIt.registerFactory<SessionBloc>(
     () => SessionBloc(sessionRepository: getIt()),
+  );
+
+  // ── Series (Session Series) ─────────────────────────────────
+  getIt.registerLazySingleton<SeriesRemoteDataSource>(
+    () => SeriesRemoteDataSource(apiClient: getIt()),
+  );
+  getIt.registerLazySingleton<SeriesRepository>(
+    () => SeriesRepositoryImpl(remoteDataSource: getIt()),
+  );
+  getIt.registerFactory<SeriesBloc>(
+    () => SeriesBloc(seriesRepository: getIt()),
   );
 
   // ── Parent ──────────────────────────────────────────────────
@@ -215,5 +238,27 @@ Future<void> configureDependencies() async {
   );
   getIt.registerFactory<AdminBloc>(
     () => AdminBloc(adminRepository: getIt()),
+  );
+
+  // ── Booking ─────────────────────────────────────────────────
+  getIt.registerLazySingleton<BookingRemoteDataSource>(
+    () => BookingRemoteDataSourceImpl(apiClient: getIt()),
+  );
+  getIt.registerLazySingleton<BookingRepository>(
+    () => BookingRepositoryImpl(remoteDataSource: getIt()),
+  );
+  getIt.registerFactory<BookingBloc>(
+    () => BookingBloc(repository: getIt()),
+  );
+
+  // ── Wallet ──────────────────────────────────────────────────
+  getIt.registerLazySingleton<WalletRemoteDataSource>(
+    () => WalletRemoteDataSource(apiClient: getIt()),
+  );
+  getIt.registerLazySingleton<WalletRepository>(
+    () => WalletRepositoryImpl(remoteDataSource: getIt()),
+  );
+  getIt.registerFactory<WalletBloc>(
+    () => WalletBloc(walletRepository: getIt()),
   );
 }

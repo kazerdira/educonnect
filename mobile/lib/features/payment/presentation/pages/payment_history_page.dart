@@ -156,8 +156,8 @@ class _TransactionCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    transaction.description.isNotEmpty
-                        ? transaction.description
+                    (transaction.description ?? '').isNotEmpty
+                        ? transaction.description!
                         : 'Paiement',
                     style: theme.textTheme.titleSmall,
                     maxLines: 1,
@@ -165,7 +165,7 @@ class _TransactionCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${transaction.amount.toStringAsFixed(0)} ${transaction.currency}',
+                  '${transaction.amount.toStringAsFixed(0)} DA',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -175,7 +175,7 @@ class _TransactionCard extends StatelessWidget {
             SizedBox(height: 8.h),
             // Recipient
             Text(
-              'À : ${transaction.recipientName}',
+              'À : ${transaction.payeeName}',
               style: theme.textTheme.bodySmall,
             ),
             SizedBox(height: 4.h),

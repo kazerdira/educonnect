@@ -88,13 +88,19 @@ func (s *Service) AddChild(ctx context.Context, parentID string, req AddChildReq
 		return nil, fmt.Errorf("create child user: %w", err)
 	}
 
-	// Find level_id from code
+	// Find level_id from code or UUID
 	var levelID *uuid.UUID
 	if req.LevelCode != "" {
-		var lid uuid.UUID
-		err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, req.LevelCode).Scan(&lid)
-		if err == nil {
-			levelID = &lid
+		// First try parsing as UUID
+		if parsed, parseErr := uuid.Parse(req.LevelCode); parseErr == nil {
+			levelID = &parsed
+		} else {
+			// Otherwise look up by code
+			var lid uuid.UUID
+			err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, req.LevelCode).Scan(&lid)
+			if err == nil {
+				levelID = &lid
+			}
 		}
 	}
 
@@ -154,9 +160,15 @@ func (s *Service) UpdateChild(ctx context.Context, parentID, childID string, req
 	// Update student profile fields if provided
 	if req.LevelCode != nil {
 		var levelID *uuid.UUID
-		var lid uuid.UUID
-		if errL := tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, *req.LevelCode).Scan(&lid); errL == nil {
-			levelID = &lid
+		// First try parsing as UUID
+		if parsed, parseErr := uuid.Parse(*req.LevelCode); parseErr == nil {
+			levelID = &parsed
+		} else {
+			// Otherwise look up by code
+			var lid uuid.UUID
+			if errL := tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, *req.LevelCode).Scan(&lid); errL == nil {
+				levelID = &lid
+			}
 		}
 		_, _ = tx.Exec(ctx, `UPDATE student_profiles SET level_id = $1 WHERE user_id = $2`, levelID, cuid)
 	}

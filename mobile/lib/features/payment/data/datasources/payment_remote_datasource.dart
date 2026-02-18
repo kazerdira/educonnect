@@ -9,6 +9,7 @@ class PaymentRemoteDataSource {
 
   /// POST /payments/initiate
   Future<TransactionModel> initiatePayment({
+    required String payeeId,
     String? sessionId,
     String? courseId,
     required double amount,
@@ -18,6 +19,7 @@ class PaymentRemoteDataSource {
     final response = await apiClient.post(
       ApiConstants.initiatePayment,
       data: {
+        'payee_id': payeeId,
         if (sessionId != null) 'session_id': sessionId,
         if (courseId != null) 'course_id': courseId,
         'amount': amount,
@@ -32,14 +34,14 @@ class PaymentRemoteDataSource {
 
   /// POST /payments/confirm
   Future<TransactionModel> confirmPayment({
-    required String transactionRef,
-    String? receiptUrl,
+    required String transactionId,
+    required String providerReference,
   }) async {
     final response = await apiClient.post(
       ApiConstants.confirmPayment,
       data: {
-        'transaction_ref': transactionRef,
-        if (receiptUrl != null) 'receipt_url': receiptUrl,
+        'transaction_id': transactionId,
+        'provider_reference': providerReference,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>?;
@@ -60,16 +62,14 @@ class PaymentRemoteDataSource {
   Future<TransactionModel> refundPayment(
     String transactionId, {
     required String reason,
-    double? amount,
-    required bool fullRefund,
+    required double amount,
   }) async {
     final response = await apiClient.post(
       ApiConstants.refundPayment,
       data: {
         'transaction_id': transactionId,
+        'amount': amount,
         'reason': reason,
-        if (amount != null) 'amount': amount,
-        'full_refund': fullRefund,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>?;
@@ -81,22 +81,22 @@ class PaymentRemoteDataSource {
   Future<SubscriptionModel> createSubscription({
     required String teacherId,
     required String planType,
-    required double amount,
-    required String currency,
-    required String paymentMethod,
-    required bool autoRenew,
-    String? startDate,
+    required int sessionsPerMonth,
+    required double price,
+    required String startDate,
+    required String endDate,
+    bool? autoRenew,
   }) async {
     final response = await apiClient.post(
       ApiConstants.subscriptions,
       data: {
         'teacher_id': teacherId,
         'plan_type': planType,
-        'amount': amount,
-        'currency': currency,
-        'payment_method': paymentMethod,
-        'auto_renew': autoRenew,
-        if (startDate != null) 'start_date': startDate,
+        'sessions_per_month': sessionsPerMonth,
+        'price': price,
+        'start_date': startDate,
+        'end_date': endDate,
+        if (autoRenew != null) 'auto_renew': autoRenew,
       },
     );
     final data = response.data['data'] as Map<String, dynamic>?;

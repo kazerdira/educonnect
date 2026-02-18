@@ -46,6 +46,11 @@ class TeacherRepositoryImpl implements TeacherRepository {
   }
 
   @override
+  Future<List<Offering>> getTeacherOfferings(String teacherId) {
+    return remoteDataSource.getTeacherOfferings(teacherId);
+  }
+
+  @override
   Future<Offering> createOffering({
     required String subjectId,
     required String levelId,

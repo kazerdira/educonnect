@@ -116,7 +116,7 @@ func (h *Handler) CreateOffering(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"success": true, "data": offering})
 }
 
-// ListOfferings GET /teachers/offerings
+// ListOfferings GET /teachers/offerings (own offerings)
 func (h *Handler) ListOfferings(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	offerings, err := h.service.ListOfferings(c.Request.Context(), userID)
@@ -125,6 +125,24 @@ func (h *Handler) ListOfferings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": offerings})
+}
+
+// GetTeacherOfferings GET /teachers/:id/offerings (public)
+func (h *Handler) GetTeacherOfferings(c *gin.Context) {
+	teacherID := c.Param("id")
+	offerings, err := h.service.ListOfferings(c.Request.Context(), teacherID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": gin.H{"message": "internal server error"}})
+		return
+	}
+	// Filter to active offerings only for public view
+	active := make([]OfferingResponse, 0)
+	for _, o := range offerings {
+		if o.IsActive {
+			active = append(active, o)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": active})
 }
 
 // UpdateOffering PUT /teachers/offerings/:id

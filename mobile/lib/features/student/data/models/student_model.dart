@@ -46,10 +46,16 @@ class StudentDashboardModel extends StudentDashboard {
     super.cycle,
     super.totalSessions,
     super.totalCourses,
+    super.upcomingSessions,
   });
 
   factory StudentDashboardModel.fromJson(Map<String, dynamic> json) {
     final profile = json['profile'] as Map<String, dynamic>? ?? {};
+    final rawSessions = json['upcoming_sessions'] as List<dynamic>? ?? [];
+    final sessions = rawSessions
+        .map(
+            (e) => StudentSessionBriefModel.fromJson(e as Map<String, dynamic>))
+        .toList();
     return StudentDashboardModel(
       firstName: profile['first_name'] as String? ?? '',
       lastName: profile['last_name'] as String? ?? '',
@@ -59,6 +65,7 @@ class StudentDashboardModel extends StudentDashboard {
       cycle: profile['cycle'] as String? ?? '',
       totalSessions: json['total_sessions'] as int? ?? 0,
       totalCourses: json['total_courses'] as int? ?? 0,
+      upcomingSessions: sessions,
     );
   }
 }
@@ -69,8 +76,8 @@ class StudentSessionBriefModel extends StudentSessionBrief {
     required super.title,
     required super.teacherName,
     required super.startTime,
+    required super.endTime,
     required super.status,
-    required super.type,
   });
 
   factory StudentSessionBriefModel.fromJson(Map<String, dynamic> json) {
@@ -80,31 +87,32 @@ class StudentSessionBriefModel extends StudentSessionBrief {
       teacherName: json['teacher_name'] as String? ?? '',
       startTime: DateTime.tryParse(json['start_time'] as String? ?? '') ??
           DateTime.now(),
+      endTime: DateTime.tryParse(json['end_time'] as String? ?? '') ??
+          DateTime.now(),
       status: json['status'] as String? ?? '',
-      type: json['type'] as String? ?? '',
     );
   }
 }
 
 class StudentEnrollmentModel extends StudentEnrollment {
   const StudentEnrollmentModel({
-    required super.id,
-    required super.courseId,
-    required super.courseName,
-    super.progress,
-    required super.enrolledAt,
+    required super.sessionId,
+    required super.title,
+    required super.teacherName,
+    required super.startTime,
     required super.status,
+    required super.attendance,
   });
 
   factory StudentEnrollmentModel.fromJson(Map<String, dynamic> json) {
     return StudentEnrollmentModel(
-      id: json['id'] as String? ?? '',
-      courseId: json['course_id'] as String? ?? '',
-      courseName: json['course_name'] as String? ?? '',
-      progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
-      enrolledAt: DateTime.tryParse(json['enrolled_at'] as String? ?? '') ??
+      sessionId: json['session_id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      teacherName: json['teacher_name'] as String? ?? '',
+      startTime: DateTime.tryParse(json['start_time'] as String? ?? '') ??
           DateTime.now(),
       status: json['status'] as String? ?? '',
+      attendance: json['attendance'] as String? ?? '',
     );
   }
 }

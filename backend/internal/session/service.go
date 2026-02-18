@@ -166,6 +166,7 @@ func (s *Service) ListSessions(ctx context.Context, userID, role string, q ListS
 }
 
 // JoinSession creates a LiveKit room (if needed), adds participant, returns join token.
+// If the session belongs to a series, enrollment and fee payment are verified.
 func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, role string) (*JoinSessionResponse, error) {
 	sid, err := uuid.Parse(sessionID)
 	if err != nil {
@@ -173,12 +174,13 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 	}
 	uid, _ := uuid.Parse(userID)
 
-	// Get session
+	// Get session including optional series_id
 	var status, roomID string
 	var teacherID uuid.UUID
+	var seriesID *uuid.UUID
 	err = s.db.Pool.QueryRow(ctx,
-		`SELECT status, COALESCE(livekit_room_id,''), teacher_id FROM sessions WHERE id = $1`, sid,
-	).Scan(&status, &roomID, &teacherID)
+		`SELECT status, COALESCE(livekit_room_id,''), teacher_id, series_id FROM sessions WHERE id = $1`, sid,
+	).Scan(&status, &roomID, &teacherID, &seriesID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrSessionNotFound
@@ -188,6 +190,32 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 
 	if status != "scheduled" && status != "live" {
 		return nil, ErrInvalidStatus
+	}
+
+	isTeacher := teacherID == uid
+
+	// ── Series access control ─────────────────────────────────────
+	// If session belongs to a series, enforce enrollment + fee checks
+	if seriesID != nil {
+		if !isTeacher {
+			// Student must be enrolled with status 'accepted'
+			var enrollStatus string
+			err = s.db.Pool.QueryRow(ctx,
+				`SELECT status::text FROM session_enrollments WHERE series_id = $1 AND student_id = $2`, *seriesID, uid,
+			).Scan(&enrollStatus)
+			if err != nil || enrollStatus != "accepted" {
+				return nil, fmt.Errorf("not enrolled in this session series")
+			}
+		}
+
+		// Both teacher and student: fee must be paid
+		var feeStatus string
+		err = s.db.Pool.QueryRow(ctx,
+			`SELECT status::text FROM platform_fees WHERE series_id = $1 ORDER BY created_at DESC LIMIT 1`, *seriesID,
+		).Scan(&feeStatus)
+		if err != nil || feeStatus != "completed" {
+			return nil, fmt.Errorf("platform fee not paid — cannot start session")
+		}
 	}
 
 	// Create LiveKit room if not exists
@@ -219,7 +247,6 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 	}
 
 	// Generate LiveKit token
-	isTeacher := teacherID == uid
 	var token string
 	if s.livekit != nil {
 		token, err = s.livekit.GenerateToken(roomID, userID, userName, isTeacher)

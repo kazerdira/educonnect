@@ -160,13 +160,18 @@ func (s *Service) RegisterParent(ctx context.Context, req RegisterParentRequest)
 			return nil, fmt.Errorf("create child user: %w", err)
 		}
 
-		// Look up level by code
+		// Look up level by code or UUID
 		var levelID *uuid.UUID
 		if child.LevelCode != "" {
-			var lid uuid.UUID
-			err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, child.LevelCode).Scan(&lid)
-			if err == nil {
-				levelID = &lid
+			// First try parsing as UUID
+			if parsed, parseErr := uuid.Parse(child.LevelCode); parseErr == nil {
+				levelID = &parsed
+			} else {
+				var lid uuid.UUID
+				err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, child.LevelCode).Scan(&lid)
+				if err == nil {
+					levelID = &lid
+				}
 			}
 		}
 
@@ -216,13 +221,18 @@ func (s *Service) RegisterStudent(ctx context.Context, req RegisterStudentReques
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 
-	// Look up level
+	// Look up level by code or UUID
 	var levelID *uuid.UUID
 	if req.LevelCode != "" {
-		var lid uuid.UUID
-		err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, req.LevelCode).Scan(&lid)
-		if err == nil {
-			levelID = &lid
+		// First try parsing as UUID
+		if parsed, parseErr := uuid.Parse(req.LevelCode); parseErr == nil {
+			levelID = &parsed
+		} else {
+			var lid uuid.UUID
+			err = tx.QueryRow(ctx, `SELECT id FROM levels WHERE code = $1`, req.LevelCode).Scan(&lid)
+			if err == nil {
+				levelID = &lid
+			}
 		}
 	}
 
@@ -301,7 +311,7 @@ func (s *Service) SendOTP(ctx context.Context, phone string) (*OTPResponse, erro
 	}
 
 	// TODO: Send OTP via SMS (ICOSNET/Twilio)
-	slog.Info("OTP generated", "phone", phone, "code", code) // Remove in production!
+	slog.Info("OTP generated", "phone", phone) // code intentionally NOT logged
 
 	return &OTPResponse{
 		Message:   "OTP sent successfully",

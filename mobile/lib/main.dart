@@ -4,7 +4,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:educonnect/core/constants/levels.dart';
+import 'package:educonnect/core/constants/subjects.dart';
 import 'package:educonnect/core/di/injection.dart';
+import 'package:educonnect/core/network/api_client.dart';
 import 'package:educonnect/core/router/app_router.dart';
 import 'package:educonnect/core/theme/app_theme.dart';
 import 'package:educonnect/features/auth/presentation/bloc/auth_bloc.dart';
@@ -12,6 +15,16 @@ import 'package:educonnect/features/auth/presentation/bloc/auth_bloc.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await configureDependencies();
+
+  // Pre-load reference data from the backend so dropdowns are ready.
+  // Non-blocking — if the API is unreachable the lists stay empty until
+  // individual pages retry.
+  final api = getIt<ApiClient>();
+  await Future.wait([
+    Levels.load(api),
+    Subjects.load(api),
+  ]);
+
   runApp(const EduConnectApp());
 }
 
@@ -27,16 +40,16 @@ class _EduConnectAppState extends State<EduConnectApp> {
   late final GoRouter _router;
 
   @override
+  void dispose() {
+    _router.dispose();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
     _authBloc = getIt<AuthBloc>()..add(AuthCheckRequested());
     _router = createRouter(_authBloc);
-  }
-
-  @override
-  void dispose() {
-    _router.dispose();
-    super.dispose();
   }
 
   @override

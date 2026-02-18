@@ -64,8 +64,9 @@ func (s *Server) setupRoutes() {
 	// ── Teacher routes ──────────────────────────────────────────
 	teachers := protected.Group("/teachers")
 	{
-		teachers.GET("", s.handleListTeachers())   // search & list
-		teachers.GET("/:id", s.handleGetTeacher()) // public profile
+		teachers.GET("", s.handleListTeachers())                      // search & list
+		teachers.GET("/:id", s.handleGetTeacher())                    // public profile
+		teachers.GET("/:id/offerings", s.handleGetTeacherOfferings()) // public offerings
 		teachers.PUT("/profile", s.handleUpdateTeacherProfile())
 		teachers.GET("/dashboard", s.handleTeacherDashboard())
 
@@ -118,6 +119,7 @@ func (s *Server) setupRoutes() {
 		// ── Session Series (NEW) ────────────────────────────────
 		series := sessions.Group("/series")
 		{
+			series.GET("/browse", s.seriesHandler.BrowseSeries) // Public browse for students
 			series.POST("", s.seriesHandler.CreateSeries)
 			series.GET("", s.seriesHandler.ListSeries)
 			series.GET("/:id", s.seriesHandler.GetSeries)
@@ -140,15 +142,39 @@ func (s *Server) setupRoutes() {
 	invitations := protected.Group("/invitations")
 	{
 		invitations.GET("", s.seriesHandler.ListInvitations)
-		invitations.PUT("/:id/accept", s.seriesHandler.AcceptInvitation)
-		invitations.PUT("/:id/decline", s.seriesHandler.DeclineInvitation)
+		invitations.POST("/:id/accept", s.seriesHandler.AcceptInvitation)
+		invitations.POST("/:id/decline", s.seriesHandler.DeclineInvitation)
 	}
 
-	// ── Platform Fees (teacher view) ────────────────────────────
+	// ── Platform Fees (legacy — kept for backward compat) ──────
 	fees := protected.Group("/fees")
 	{
 		fees.GET("/pending", s.seriesHandler.ListPendingFees)
 		fees.POST("/:id/confirm", s.seriesHandler.ConfirmPayment)
+	}
+
+	// ── Wallet routes (teacher credit system) ───────────────────
+	walletRoutes := protected.Group("/wallet")
+	{
+		walletRoutes.GET("", s.walletHandler.GetWallet)                     // GET /wallet
+		walletRoutes.POST("/buy", s.walletHandler.BuyCredits)               // POST /wallet/buy
+		walletRoutes.GET("/transactions", s.walletHandler.ListTransactions) // GET /wallet/transactions
+		walletRoutes.GET("/packages", s.walletHandler.ListPackages)         // GET /wallet/packages
+	}
+
+	// ── Booking routes (Student/Parent books sessions) ──────────
+	bookings := protected.Group("/bookings")
+	{
+		bookings.POST("", s.bookingHandler.CreateBookingRequest)
+		bookings.GET("", s.bookingHandler.ListBookingRequests)
+		bookings.GET("/:id", s.bookingHandler.GetBookingRequest)
+		bookings.PUT("/:id/accept", s.bookingHandler.AcceptBookingRequest)
+		bookings.PUT("/:id/decline", s.bookingHandler.DeclineBookingRequest)
+		bookings.DELETE("/:id", s.bookingHandler.CancelBookingRequest)
+
+		// Conversation thread (teacher ↔ student negotiate before accept/decline)
+		bookings.POST("/:id/messages", s.bookingHandler.SendMessage)
+		bookings.GET("/:id/messages", s.bookingHandler.ListMessages)
 	}
 
 	// ── Course routes ───────────────────────────────────────────
@@ -249,7 +275,11 @@ func (s *Server) setupRoutes() {
 		admin.PUT("/config/subjects", s.handleAdminUpdateSubjects())
 		admin.PUT("/config/levels", s.handleAdminUpdateLevels())
 
-		// Platform fees verification
+		// Platform fees verification (legacy)
 		admin.PUT("/fees/:id/verify", s.seriesHandler.AdminVerifyPayment)
+
+		// Wallet purchase verification
+		admin.GET("/wallet/purchases", s.walletHandler.AdminListPendingPurchases)
+		admin.PUT("/wallet/purchases/:id/verify", s.walletHandler.AdminApprovePurchase)
 	}
 }

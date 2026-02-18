@@ -21,6 +21,10 @@ func (h *Handler) SearchTeachers(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
 		return
 	}
+	if req.Query == "" && req.Subject == "" && req.Level == "" && req.Wilaya == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": "Veuillez saisir un texte ou sélectionner un filtre"}})
+		return
+	}
 
 	result, err := h.service.SearchTeachers(c.Request.Context(), req)
 	if err != nil {
@@ -45,6 +49,10 @@ func (h *Handler) SearchCourses(c *gin.Context) {
 	var req SearchRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
+		return
+	}
+	if req.Query == "" && req.Subject == "" && req.Level == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": "Veuillez saisir un texte ou sélectionner un filtre"}})
 		return
 	}
 

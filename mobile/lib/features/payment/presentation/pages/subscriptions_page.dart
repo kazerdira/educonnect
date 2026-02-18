@@ -227,7 +227,7 @@ class _SubscriptionCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '${subscription.amount.toStringAsFixed(0)} ${subscription.currency}',
+                  '${subscription.price.toStringAsFixed(0)} DA',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),

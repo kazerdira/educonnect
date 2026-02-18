@@ -51,6 +51,7 @@ func (m *Meilisearch) configureIndexes() {
 	})
 	teacherIdx.UpdateSearchableAttributes(&[]string{
 		"name", "first_name", "last_name", "bio", "specializations", "wilaya",
+		"subjects", "levels",
 	})
 
 	// Courses index

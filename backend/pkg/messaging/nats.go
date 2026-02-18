@@ -38,7 +38,6 @@ const (
 // NewNATS creates a new NATS connection with JetStream.
 func NewNATS(cfg config.NATSConfig) (*NATS, error) {
 	opts := []nats.Option{
-		nats.UserInfo(cfg.User, cfg.Password),
 		nats.MaxReconnects(-1),
 		nats.ReconnectWait(2 * time.Second),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
@@ -47,6 +46,11 @@ func NewNATS(cfg config.NATSConfig) (*NATS, error) {
 		nats.ReconnectHandler(func(_ *nats.Conn) {
 			slog.Info("NATS reconnected")
 		}),
+	}
+
+	// Only add authentication if credentials are provided
+	if cfg.User != "" && cfg.Password != "" {
+		opts = append(opts, nats.UserInfo(cfg.User, cfg.Password))
 	}
 
 	nc, err := nats.Connect(cfg.URL, opts...)

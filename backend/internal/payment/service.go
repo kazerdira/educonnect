@@ -20,6 +20,8 @@ var (
 	ErrAlreadyCancelled     = errors.New("subscription already cancelled")
 	ErrInvalidRefund        = errors.New("refund amount exceeds transaction amount")
 	ErrAlreadyRefunded      = errors.New("transaction already refunded")
+	ErrNotPending           = errors.New("transaction is not in pending status")
+	ErrNotCompleted         = errors.New("only completed transactions can be refunded")
 )
 
 type Service struct {
@@ -66,11 +68,12 @@ func (s *Service) InitiatePayment(ctx context.Context, payerID string, req Initi
 // ─── ConfirmPayment ─────────────────────────────────────────────
 
 func (s *Service) ConfirmPayment(ctx context.Context, userID string, req ConfirmPaymentRequest) (*TransactionResponse, error) {
-	// Verify payer owns this transaction
+	// Verify payer owns this transaction and status is pending
 	var dbPayerID uuid.UUID
+	var currentStatus string
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT payer_id FROM transactions WHERE id = $1`, req.TransactionID,
-	).Scan(&dbPayerID)
+		`SELECT payer_id, status::text FROM transactions WHERE id = $1`, req.TransactionID,
+	).Scan(&dbPayerID, &currentStatus)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrTransactionNotFound
@@ -79,6 +82,9 @@ func (s *Service) ConfirmPayment(ctx context.Context, userID string, req Confirm
 	}
 	if dbPayerID.String() != userID {
 		return nil, ErrNotAuthorized
+	}
+	if currentStatus != "pending" {
+		return nil, ErrNotPending
 	}
 
 	var t TransactionResponse
@@ -179,6 +185,9 @@ func (s *Service) RefundPayment(ctx context.Context, userID string, req RefundPa
 	}
 	if currentStatus == "refunded" {
 		return nil, ErrAlreadyRefunded
+	}
+	if currentStatus != "completed" {
+		return nil, ErrNotCompleted
 	}
 	if req.Amount > currentAmount {
 		return nil, ErrInvalidRefund

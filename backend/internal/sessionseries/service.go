@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"educonnect/internal/wallet"
 	"educonnect/pkg/database"
 	lk "educonnect/pkg/livekit"
 
@@ -44,10 +46,11 @@ var (
 type Service struct {
 	db      *database.Postgres
 	livekit *lk.Client
+	wallet  *wallet.Service
 }
 
-func NewService(db *database.Postgres, livekit *lk.Client) *Service {
-	return &Service{db: db, livekit: livekit}
+func NewService(db *database.Postgres, livekit *lk.Client, walletSvc *wallet.Service) *Service {
+	return &Service{db: db, livekit: livekit, wallet: walletSvc}
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -75,11 +78,30 @@ func (s *Service) CreateSeries(ctx context.Context, teacherID string, req Create
 		minStudents = 1
 	}
 
+	// Resolve level code to UUID if provided as code (e.g., "3AM")
+	var levelID *uuid.UUID
+	if req.LevelID != nil && *req.LevelID != "" {
+		// Check if it's already a UUID
+		if parsed, err := uuid.Parse(*req.LevelID); err == nil {
+			levelID = &parsed
+		} else {
+			// It's a code, resolve to UUID
+			pattern := s.levelCodeToPattern(*req.LevelID)
+			var resolvedID uuid.UUID
+			err := s.db.Pool.QueryRow(ctx,
+				`SELECT id FROM levels WHERE LOWER(name) LIKE LOWER($1) LIMIT 1`, pattern,
+			).Scan(&resolvedID)
+			if err == nil {
+				levelID = &resolvedID
+			}
+		}
+	}
+
 	_, err := s.db.Pool.Exec(ctx,
-		`INSERT INTO session_series (id, teacher_id, offering_id, title, description,
+		`INSERT INTO session_series (id, teacher_id, offering_id, level_id, subject_id, title, description,
 		    session_type, duration_hours, min_students, max_students, price_per_hour, status)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft')`,
-		id, tid, req.OfferingID, req.Title, req.Description,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'draft')`,
+		id, tid, req.OfferingID, levelID, req.SubjectID, req.Title, req.Description,
 		req.SessionType, req.DurationHours, minStudents, maxStudents, req.PricePerHour,
 	)
 	if err != nil {
@@ -99,7 +121,7 @@ func (s *Service) GetSeries(ctx context.Context, seriesID string, callerID strin
 	var finalizedAt *time.Time
 	err = s.db.Pool.QueryRow(ctx,
 		`SELECT ss.id, ss.teacher_id, u.first_name || ' ' || u.last_name,
-		        ss.offering_id, ss.title, COALESCE(ss.description,''),
+		        ss.offering_id, ss.level_id, ss.subject_id, ss.title, COALESCE(ss.description,''),
 		        ss.session_type::text, ss.duration_hours, ss.min_students, ss.max_students,
 		        ss.price_per_hour, ss.status::text, ss.is_finalized, ss.finalized_at,
 		        ss.created_at, ss.updated_at
@@ -108,7 +130,7 @@ func (s *Service) GetSeries(ctx context.Context, seriesID string, callerID strin
 		 WHERE ss.id = $1`, sid,
 	).Scan(
 		&sr.ID, &sr.TeacherID, &sr.TeacherName,
-		&sr.OfferingID, &sr.Title, &sr.Description,
+		&sr.OfferingID, &sr.LevelID, &sr.SubjectID, &sr.Title, &sr.Description,
 		&sr.SessionType, &sr.DurationHours, &sr.MinStudents, &sr.MaxStudents,
 		&sr.PricePerHour, &sr.Status, &sr.IsFinalized, &finalizedAt,
 		&sr.CreatedAt, &sr.UpdatedAt,
@@ -120,6 +142,31 @@ func (s *Service) GetSeries(ctx context.Context, seriesID string, callerID strin
 		return nil, fmt.Errorf("get series: %w", err)
 	}
 	sr.FinalizedAt = finalizedAt
+
+	// Fetch subject/level names - try direct columns first, then offering
+	if sr.SubjectID != nil || sr.LevelID != nil {
+		if sr.SubjectID != nil {
+			var subjectName string
+			_ = s.db.Pool.QueryRow(ctx, `SELECT name_fr FROM subjects WHERE id = $1`, *sr.SubjectID).Scan(&subjectName)
+			sr.SubjectName = subjectName
+		}
+		if sr.LevelID != nil {
+			var levelName string
+			_ = s.db.Pool.QueryRow(ctx, `SELECT name FROM levels WHERE id = $1`, *sr.LevelID).Scan(&levelName)
+			sr.LevelName = levelName
+		}
+	} else if sr.OfferingID != nil {
+		var subjectName, levelName string
+		_ = s.db.Pool.QueryRow(ctx,
+			`SELECT COALESCE(s.name_fr, ''), COALESCE(l.name, '')
+			 FROM offerings o
+			 LEFT JOIN subjects s ON s.id = o.subject_id
+			 LEFT JOIN levels l ON l.id = o.level_id
+			 WHERE o.id = $1`, *sr.OfferingID,
+		).Scan(&subjectName, &levelName)
+		sr.SubjectName = subjectName
+		sr.LevelName = levelName
+	}
 
 	// Count sessions
 	_ = s.db.Pool.QueryRow(ctx,
@@ -169,16 +216,11 @@ func (s *Service) GetSeries(ctx context.Context, seriesID string, callerID strin
 		sr.Enrollments = []EnrollmentBrief{}
 	}
 
-	// Calculate estimated fee
-	sr.EstimatedFee = s.calculatePlatformFee(sr.SessionType, sr.DurationHours, sr.TotalSessions, sr.EnrolledCount)
-
-	// Check if fee is paid
-	var feeStatus string
-	err = s.db.Pool.QueryRow(ctx,
-		`SELECT status::text FROM platform_fees WHERE series_id = $1 ORDER BY created_at DESC LIMIT 1`, sid,
-	).Scan(&feeStatus)
-	if err == nil && feeStatus == "completed" {
-		sr.FeePaid = true
+	// Star cost per enrollment
+	if sr.SessionType == "one_on_one" {
+		sr.StarCost = PrivateStarCost
+	} else {
+		sr.StarCost = GroupStarCost
 	}
 
 	return &sr, nil
@@ -229,6 +271,137 @@ func (s *Service) ListTeacherSeries(ctx context.Context, teacherID string, statu
 	}
 
 	return series, total, nil
+}
+
+// BrowseAvailableSeries returns public series available for enrollment (active or finalized)
+// Also returns current user's enrollment status for each series
+func (s *Service) BrowseAvailableSeries(ctx context.Context, currentUserID, subjectID, levelID, sessionType string, page, limit int) ([]SeriesResponse, int64, error) {
+	offset := (page - 1) * limit
+
+	// Resolve level code to UUID if needed (e.g., "3AM" -> UUID)
+	resolvedLevelID := levelID
+	if levelID != "" {
+		// Check if it's not a valid UUID (i.e., it's a code like "3AM")
+		if _, err := uuid.Parse(levelID); err != nil {
+			var levelUUID string
+			// Map common level codes to search patterns
+			// e.g., "3AM" -> "3ème Année Moyenne", "1AP" -> "1ère Année Primaire"
+			searchPattern := s.levelCodeToPattern(levelID)
+			err := s.db.Pool.QueryRow(ctx,
+				`SELECT id::text FROM levels WHERE UPPER(name) LIKE UPPER($1) LIMIT 1`,
+				searchPattern,
+			).Scan(&levelUUID)
+			if err == nil {
+				resolvedLevelID = levelUUID
+			}
+		}
+	}
+
+	// Build query for series available for enrollment (active or finalized, not draft/completed/cancelled)
+	// Filter uses both direct columns (ss.level_id, ss.subject_id) and offering columns (o.level_id, o.subject_id)
+	baseWhere := `WHERE ss.status IN ('active', 'finalized')`
+	args := []interface{}{}
+	argIdx := 1
+
+	if subjectID != "" {
+		baseWhere += fmt.Sprintf(` AND (ss.subject_id = $%d OR o.subject_id = $%d)`, argIdx, argIdx)
+		args = append(args, subjectID)
+		argIdx++
+	}
+	if resolvedLevelID != "" {
+		baseWhere += fmt.Sprintf(` AND (ss.level_id = $%d OR o.level_id = $%d)`, argIdx, argIdx)
+		args = append(args, resolvedLevelID)
+		argIdx++
+	}
+	if sessionType != "" {
+		baseWhere += fmt.Sprintf(` AND ss.session_type = $%d`, argIdx)
+		args = append(args, sessionType)
+		argIdx++
+	}
+
+	countQ := `SELECT COUNT(*) FROM session_series ss 
+		LEFT JOIN offerings o ON o.id = ss.offering_id ` + baseWhere
+	var total int64
+	_ = s.db.Pool.QueryRow(ctx, countQ, args...).Scan(&total)
+
+	listQ := fmt.Sprintf(`SELECT ss.id, ss.teacher_id FROM session_series ss
+		LEFT JOIN offerings o ON o.id = ss.offering_id
+		%s
+		ORDER BY ss.created_at DESC
+		LIMIT %d OFFSET %d`, baseWhere, limit, offset)
+
+	rows, err := s.db.Pool.Query(ctx, listQ, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("browse series: %w", err)
+	}
+	defer rows.Close()
+
+	var series []SeriesResponse
+	for rows.Next() {
+		var id, teacherID string
+		if err := rows.Scan(&id, &teacherID); err != nil {
+			continue
+		}
+		sr, err := s.GetSeries(ctx, id, teacherID)
+		if err == nil {
+			// Check if current user has an enrollment in this series
+			if currentUserID != "" {
+				sr.CurrentUserStatus = s.getUserEnrollmentStatus(ctx, id, currentUserID)
+			}
+			series = append(series, *sr)
+		}
+	}
+	if series == nil {
+		series = []SeriesResponse{}
+	}
+
+	return series, total, nil
+}
+
+// levelCodeToPattern converts a level code to a search pattern for the database
+// e.g., "3AM" -> "%3%Moyenne%", "1AP" -> "%1%Primaire%", "2AS" -> "%2%Secondaire%"
+func (s *Service) levelCodeToPattern(code string) string {
+	code = strings.ToUpper(code)
+
+	// Extract number and suffix
+	if len(code) < 2 {
+		return "%" + code + "%"
+	}
+
+	// Common patterns: 1AP, 2AM, 3AS, L1, M1, BEM, BAC
+	switch {
+	case strings.HasSuffix(code, "AP"): // Primaire
+		num := strings.TrimSuffix(code, "AP")
+		return "%" + num + "%Primaire%"
+	case strings.HasSuffix(code, "AM"): // Moyenne
+		num := strings.TrimSuffix(code, "AM")
+		return "%" + num + "%Moyenne%"
+	case strings.HasSuffix(code, "AS"): // Secondaire - DB uses "1AS —" format
+		return code + "%"
+	case strings.HasPrefix(code, "L"): // Licence
+		return "%Licence " + strings.TrimPrefix(code, "L") + "%"
+	case strings.HasPrefix(code, "M"): // Master
+		return "%Master " + strings.TrimPrefix(code, "M") + "%"
+	case code == "BEM":
+		return "%BEM%"
+	case code == "BAC":
+		return "%BAC%"
+	default:
+		return "%" + code + "%"
+	}
+}
+
+// getUserEnrollmentStatus returns the enrollment status for a user in a series
+func (s *Service) getUserEnrollmentStatus(ctx context.Context, seriesID, userID string) string {
+	var status string
+	err := s.db.Pool.QueryRow(ctx,
+		`SELECT status::text FROM session_enrollments WHERE series_id = $1 AND student_id = $2`,
+		seriesID, userID,
+	).Scan(&status)
+	if err != nil {
+		return "" // Not enrolled
+	}
+	return status
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -291,7 +464,7 @@ func (s *Service) AddSessions(ctx context.Context, seriesID, teacherID string, r
 		_, err = tx.Exec(ctx,
 			`INSERT INTO sessions (id, teacher_id, series_id, session_number, title,
 			    session_type, start_time, end_time, max_participants, price, status)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 'scheduled')`,
+			 VALUES ($1, $2, $3, $4, $5, $6::session_type, $7, $8, $9, 0, 'scheduled')`,
 			uuid.New(), tid, sid, sessionNum, sessionTitle,
 			sessionType, startTime, endTime, maxParticipants,
 		)
@@ -353,10 +526,25 @@ func (s *Service) InviteStudents(ctx context.Context, seriesID, teacherID string
 	var results []EnrollmentResponse
 	now := time.Now()
 	for _, studentIDStr := range req.StudentIDs {
-		studentID, _ := uuid.Parse(studentIDStr)
+		var studentID uuid.UUID
+
+		// Try to parse as UUID first, otherwise look up by email
+		parsedID, err := uuid.Parse(studentIDStr)
+		if err != nil {
+			// Not a UUID, try to find user by email
+			err = s.db.Pool.QueryRow(ctx,
+				`SELECT id FROM users WHERE email = $1 AND role IN ('student', 'parent')`, studentIDStr,
+			).Scan(&studentID)
+			if err != nil {
+				continue // User not found, skip
+			}
+		} else {
+			studentID = parsedID
+		}
+
 		enrollID := uuid.New()
 
-		_, err := s.db.Pool.Exec(ctx,
+		_, err = s.db.Pool.Exec(ctx,
 			`INSERT INTO session_enrollments (id, series_id, student_id, initiated_by, status, invited_at)
 			 VALUES ($1, $2, $3, 'teacher', 'invited', $4)
 			 ON CONFLICT (series_id, student_id) DO NOTHING`,
@@ -443,7 +631,7 @@ func (s *Service) RequestToJoin(ctx context.Context, seriesID, studentID string)
 // Accept/Decline Enrollments
 // ═══════════════════════════════════════════════════════════════
 
-// Student accepts teacher's invitation
+// Student accepts teacher's invitation — deducts 1 star from teacher wallet.
 func (s *Service) AcceptInvitation(ctx context.Context, enrollmentID, studentID string) (*EnrollmentResponse, error) {
 	eid, _ := uuid.Parse(enrollmentID)
 	stid, _ := uuid.Parse(studentID)
@@ -451,9 +639,10 @@ func (s *Service) AcceptInvitation(ctx context.Context, enrollmentID, studentID 
 	// Verify ownership
 	var dbStudentID uuid.UUID
 	var currentStatus, initiatedBy string
+	var seriesID uuid.UUID
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT student_id, status::text, initiated_by FROM session_enrollments WHERE id = $1`, eid,
-	).Scan(&dbStudentID, &currentStatus, &initiatedBy)
+		`SELECT student_id, series_id, status::text, initiated_by FROM session_enrollments WHERE id = $1`, eid,
+	).Scan(&dbStudentID, &seriesID, &currentStatus, &initiatedBy)
 	if err != nil {
 		return nil, ErrEnrollmentNotFound
 	}
@@ -472,6 +661,30 @@ func (s *Service) AcceptInvitation(ctx context.Context, enrollmentID, studentID 
 
 	if initiatedBy != "teacher" || currentStatus != "invited" {
 		return nil, ErrInvalidStatus
+	}
+
+	// Get series info for star deduction
+	var teacherID uuid.UUID
+	var sessionType, seriesTitle string
+	err = s.db.Pool.QueryRow(ctx,
+		`SELECT teacher_id, session_type::text, title FROM session_series WHERE id = $1`, seriesID,
+	).Scan(&teacherID, &sessionType, &seriesTitle)
+	if err != nil {
+		return nil, ErrSeriesNotFound
+	}
+
+	// Get student name for transaction description
+	var studentName string
+	_ = s.db.Pool.QueryRow(ctx,
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, dbStudentID,
+	).Scan(&studentName)
+
+	// ★ Deduct star from teacher wallet (ACID)
+	if s.wallet != nil {
+		_, err = s.wallet.DeductStar(ctx, teacherID.String(), sessionType, eid, seriesID, studentName, seriesTitle)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	now := time.Now()
@@ -514,17 +727,19 @@ func (s *Service) DeclineInvitation(ctx context.Context, enrollmentID, studentID
 	return err
 }
 
-// Teacher accepts student's request
+// Teacher accepts student's request — deducts 1 star from teacher wallet.
 func (s *Service) AcceptRequest(ctx context.Context, seriesID, enrollmentID, teacherID string) (*EnrollmentResponse, error) {
 	sid, _ := uuid.Parse(seriesID)
 	eid, _ := uuid.Parse(enrollmentID)
 	tid, _ := uuid.Parse(teacherID)
 
-	// Verify teacher owns series
+	// Verify teacher owns series and get session type
 	var ownerID uuid.UUID
+	var sessionType string
+	var seriesTitle string
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT teacher_id FROM session_series WHERE id = $1`, sid,
-	).Scan(&ownerID)
+		`SELECT teacher_id, session_type::text, title FROM session_series WHERE id = $1`, sid,
+	).Scan(&ownerID, &sessionType, &seriesTitle)
 	if err != nil {
 		return nil, ErrSeriesNotFound
 	}
@@ -535,9 +750,10 @@ func (s *Service) AcceptRequest(ctx context.Context, seriesID, enrollmentID, tea
 	// Verify enrollment exists and is a request
 	var currentStatus, initiatedBy string
 	var enrollSeriesID uuid.UUID
+	var studentID uuid.UUID
 	err = s.db.Pool.QueryRow(ctx,
-		`SELECT series_id, status::text, initiated_by FROM session_enrollments WHERE id = $1`, eid,
-	).Scan(&enrollSeriesID, &currentStatus, &initiatedBy)
+		`SELECT series_id, student_id, status::text, initiated_by FROM session_enrollments WHERE id = $1`, eid,
+	).Scan(&enrollSeriesID, &studentID, &currentStatus, &initiatedBy)
 	if err != nil {
 		return nil, ErrEnrollmentNotFound
 	}
@@ -546,6 +762,20 @@ func (s *Service) AcceptRequest(ctx context.Context, seriesID, enrollmentID, tea
 	}
 	if initiatedBy != "student" || currentStatus != "requested" {
 		return nil, ErrInvalidStatus
+	}
+
+	// Get student name for transaction description
+	var studentName string
+	_ = s.db.Pool.QueryRow(ctx,
+		`SELECT first_name || ' ' || last_name FROM users WHERE id = $1`, studentID,
+	).Scan(&studentName)
+
+	// ★ Deduct star from teacher wallet (ACID)
+	if s.wallet != nil {
+		_, err = s.wallet.DeductStar(ctx, teacherID, sessionType, eid, sid, studentName, seriesTitle)
+		if err != nil {
+			return nil, err // ErrInsufficientBalance propagates with 402 status
+		}
 	}
 
 	now := time.Now()
@@ -584,7 +814,7 @@ func (s *Service) DeclineRequest(ctx context.Context, seriesID, enrollmentID, te
 	return err
 }
 
-// Teacher removes student from series
+// Teacher removes student from series — refunds star if before first session.
 func (s *Service) RemoveStudent(ctx context.Context, seriesID, studentID, teacherID string) error {
 	sid, _ := uuid.Parse(seriesID)
 	stid, _ := uuid.Parse(studentID)
@@ -602,6 +832,14 @@ func (s *Service) RemoveStudent(ctx context.Context, seriesID, studentID, teache
 		return ErrNotAuthorized
 	}
 
+	// Get enrollment ID before updating
+	var enrollmentID uuid.UUID
+	err = s.db.Pool.QueryRow(ctx,
+		`SELECT id FROM session_enrollments WHERE series_id = $1 AND student_id = $2 AND status = 'accepted'`,
+		sid, stid,
+	).Scan(&enrollmentID)
+	wasAccepted := err == nil
+
 	tag, err := s.db.Pool.Exec(ctx,
 		`UPDATE session_enrollments SET status = 'removed' WHERE series_id = $1 AND student_id = $2`,
 		sid, stid,
@@ -612,6 +850,13 @@ func (s *Service) RemoveStudent(ctx context.Context, seriesID, studentID, teache
 	if tag.RowsAffected() == 0 {
 		return ErrEnrollmentNotFound
 	}
+
+	// ★ Refund star if enrollment was accepted (idempotent, checks 1st session internally)
+	if wasAccepted && s.wallet != nil {
+		_ = s.wallet.RefundStar(ctx, teacherID, enrollmentID)
+		// Refund is best-effort; if first session started, no refund — that's fine
+	}
+
 	return nil
 }
 
@@ -721,20 +966,17 @@ func (s *Service) ListSeriesRequests(ctx context.Context, seriesID, teacherID st
 // Finalize & Pay Platform Fee
 // ═══════════════════════════════════════════════════════════════
 
-// Teacher finalizes series - calculates and creates platform fee
-func (s *Service) FinalizeSeries(ctx context.Context, seriesID, teacherID string) (*PlatformFeeResponse, error) {
+// Teacher finalizes series — marks it as ready (no payment required, stars are per-enrollment).
+func (s *Service) FinalizeSeries(ctx context.Context, seriesID, teacherID string) (*SeriesResponse, error) {
 	sid, _ := uuid.Parse(seriesID)
 	tid, _ := uuid.Parse(teacherID)
 
 	// Verify ownership and status
 	var ownerID uuid.UUID
-	var seriesStatus, sessionType string
-	var durationHours float64
 	var isFinalized bool
 	err := s.db.Pool.QueryRow(ctx,
-		`SELECT teacher_id, status::text, session_type::text, duration_hours, is_finalized 
-		 FROM session_series WHERE id = $1`, sid,
-	).Scan(&ownerID, &seriesStatus, &sessionType, &durationHours, &isFinalized)
+		`SELECT teacher_id, is_finalized FROM session_series WHERE id = $1`, sid,
+	).Scan(&ownerID, &isFinalized)
 	if err != nil {
 		return nil, ErrSeriesNotFound
 	}
@@ -761,29 +1003,6 @@ func (s *Service) FinalizeSeries(ctx context.Context, seriesID, teacherID string
 		return nil, ErrNoEnrollments
 	}
 
-	// Calculate fee
-	amount := s.calculatePlatformFee(sessionType, durationHours, totalSessions, enrolledCount)
-	feeRate := GroupFeePerHourPerStudent
-	if sessionType == "one_on_one" {
-		feeRate = IndividualFeePerHour
-	}
-
-	// Create fee record
-	feeID := uuid.New()
-	description := fmt.Sprintf("Frais de plateforme - %d séances × %.1fh × %d étudiants", totalSessions, durationHours, enrolledCount)
-	if sessionType == "one_on_one" {
-		description = fmt.Sprintf("Frais de plateforme - %d séances × %.1fh (individuel)", totalSessions, durationHours)
-	}
-
-	_, err = s.db.Pool.Exec(ctx,
-		`INSERT INTO platform_fees (id, series_id, teacher_id, enrolled_count, total_sessions, duration_hours, fee_rate, amount, description)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		feeID, sid, tid, enrolledCount, totalSessions, durationHours, feeRate, amount, description,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create fee: %w", err)
-	}
-
 	// Mark series as finalized
 	now := time.Now()
 	_, _ = s.db.Pool.Exec(ctx,
@@ -791,7 +1010,7 @@ func (s *Service) FinalizeSeries(ctx context.Context, seriesID, teacherID string
 		now, sid,
 	)
 
-	return s.getFee(ctx, feeID)
+	return s.GetSeries(ctx, seriesID, teacherID)
 }
 
 // Teacher confirms payment with BaridiMob reference
@@ -910,7 +1129,7 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 
 	isTeacher := teacherID == uid
 
-	// If student, check enrollment
+	// If student, check enrollment (star already paid at acceptance time)
 	if !isTeacher {
 		if seriesID == nil {
 			return nil, ErrNotEnrolled
@@ -925,15 +1144,6 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 			return nil, ErrNotEnrolled
 		}
 
-		// Check if teacher has paid
-		var feeStatus string
-		err = s.db.Pool.QueryRow(ctx,
-			`SELECT status::text FROM platform_fees WHERE series_id = $1 ORDER BY created_at DESC LIMIT 1`, *seriesID,
-		).Scan(&feeStatus)
-		if err != nil || feeStatus != "completed" {
-			return nil, ErrFeeNotPaid
-		}
-
 		// Add as participant
 		_, _ = s.db.Pool.Exec(ctx,
 			`INSERT INTO session_participants (session_id, student_id, attendance)
@@ -941,17 +1151,6 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 			 WHERE NOT EXISTS (SELECT 1 FROM session_participants WHERE session_id = $1 AND student_id = $2)`,
 			sessID, uid,
 		)
-	} else {
-		// Teacher joining - check if fee is paid
-		if seriesID != nil {
-			var feeStatus string
-			err = s.db.Pool.QueryRow(ctx,
-				`SELECT status::text FROM platform_fees WHERE series_id = $1 ORDER BY created_at DESC LIMIT 1`, *seriesID,
-			).Scan(&feeStatus)
-			if err != nil || feeStatus != "completed" {
-				return nil, ErrFeeNotPaid
-			}
-		}
 	}
 
 	// Create LiveKit room if needed
@@ -992,13 +1191,11 @@ func (s *Service) JoinSession(ctx context.Context, sessionID, userID, userName, 
 // Helpers
 // ═══════════════════════════════════════════════════════════════
 
-func (s *Service) calculatePlatformFee(sessionType string, durationHours float64, totalSessions int, enrolledStudents int) float64 {
+func (s *Service) starCostForType(sessionType string) float64 {
 	if sessionType == "one_on_one" {
-		// Individual: 120 DA × hours × sessions
-		return IndividualFeePerHour * durationHours * float64(totalSessions)
+		return PrivateStarCost
 	}
-	// Group: 50 DA × hours × sessions × students
-	return GroupFeePerHourPerStudent * durationHours * float64(totalSessions) * float64(enrolledStudents)
+	return GroupStarCost
 }
 
 func (s *Service) getEnrollment(ctx context.Context, enrollID uuid.UUID) (*EnrollmentResponse, error) {
@@ -1037,10 +1234,12 @@ func (s *Service) getEnrollment(ctx context.Context, enrollID uuid.UUID) (*Enrol
 func (s *Service) getFee(ctx context.Context, feeID uuid.UUID) (*PlatformFeeResponse, error) {
 	var fee PlatformFeeResponse
 	var seriesTitle string
+	var providerRef, description *string
+	var paidAt *time.Time
 	err := s.db.Pool.QueryRow(ctx,
 		`SELECT pf.id, pf.series_id, ss.title, pf.teacher_id, pf.enrolled_count, 
 		        pf.total_sessions, pf.duration_hours, pf.fee_rate, pf.amount,
-		        pf.status::text, pf.provider_ref, COALESCE(pf.description,''),
+		        pf.status::text, pf.provider_ref, pf.description,
 		        pf.created_at, pf.paid_at
 		 FROM platform_fees pf
 		 JOIN session_series ss ON ss.id = pf.series_id
@@ -1048,8 +1247,8 @@ func (s *Service) getFee(ctx context.Context, feeID uuid.UUID) (*PlatformFeeResp
 	).Scan(
 		&fee.ID, &fee.SeriesID, &seriesTitle, &fee.TeacherID, &fee.EnrolledCount,
 		&fee.TotalSessions, &fee.DurationHours, &fee.FeeRate, &fee.Amount,
-		&fee.Status, &fee.ProviderRef, &fee.Description,
-		&fee.CreatedAt, &fee.PaidAt,
+		&fee.Status, &providerRef, &description,
+		&fee.CreatedAt, &paidAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1058,5 +1257,10 @@ func (s *Service) getFee(ctx context.Context, feeID uuid.UUID) (*PlatformFeeResp
 		return nil, fmt.Errorf("get fee: %w", err)
 	}
 	fee.SeriesTitle = seriesTitle
+	fee.ProviderRef = providerRef
+	fee.PaidAt = paidAt
+	if description != nil {
+		fee.Description = *description
+	}
 	return &fee, nil
 }

@@ -7,13 +7,13 @@ import (
 )
 
 // ═══════════════════════════════════════════════════════════════
-// Platform Fee Constants
-// Teacher pays ALL fees - students pay nothing to platform
+// Star Pricing (replaces old platform fee constants)
+// Teachers pay per-enrollment, not per-hour.
 // ═══════════════════════════════════════════════════════════════
 
 const (
-	GroupFeePerHourPerStudent = 50.0  // DA per student per hour
-	IndividualFeePerHour      = 120.0 // DA per hour (no per-student)
+	GroupStarCost   = 50.0 // DZD per enrollment in a group series
+	PrivateStarCost = 70.0 // DZD per enrollment in a 1-on-1 series
 )
 
 // ═══════════════════════════════════════════════════════════════
@@ -25,6 +25,10 @@ type SeriesResponse struct {
 	TeacherID     uuid.UUID         `json:"teacher_id"`
 	TeacherName   string            `json:"teacher_name"`
 	OfferingID    *uuid.UUID        `json:"offering_id,omitempty"`
+	LevelID       *uuid.UUID        `json:"level_id,omitempty"`   // Direct level
+	SubjectID     *uuid.UUID        `json:"subject_id,omitempty"` // Direct subject
+	SubjectName   string            `json:"subject_name,omitempty"`
+	LevelName     string            `json:"level_name,omitempty"`
 	Title         string            `json:"title"`
 	Description   string            `json:"description,omitempty"`
 	SessionType   string            `json:"session_type"` // "one_on_one" or "group"
@@ -40,10 +44,11 @@ type SeriesResponse struct {
 	Enrollments   []EnrollmentBrief `json:"enrollments,omitempty"`
 	EnrolledCount int               `json:"enrolled_count"` // Accepted enrollments
 	PendingCount  int               `json:"pending_count"`  // Invited/Requested
-	EstimatedFee  float64           `json:"estimated_fee"`  // Calculated platform fee
-	FeePaid       bool              `json:"fee_paid"`       // Has teacher paid?
+	StarCost      float64           `json:"star_cost"`      // DZD per enrollment (50 group / 70 private)
 	CreatedAt     time.Time         `json:"created_at"`
 	UpdatedAt     time.Time         `json:"updated_at"`
+	// For browse: current user's enrollment status (empty if not enrolled)
+	CurrentUserStatus string `json:"current_user_status,omitempty"` // "invited", "requested", "enrolled", "declined", ""
 }
 
 type SessionBrief struct {
@@ -69,6 +74,8 @@ type EnrollmentBrief struct {
 
 type CreateSeriesRequest struct {
 	OfferingID    *uuid.UUID `json:"offering_id"`
+	LevelID       *string    `json:"level_id"`   // Can be UUID or level code (e.g., "3AM")
+	SubjectID     *uuid.UUID `json:"subject_id"` // Direct subject (optional if offering_id provided)
 	Title         string     `json:"title" validate:"required,min=3,max=255"`
 	Description   string     `json:"description" validate:"omitempty,max=5000"`
 	SessionType   string     `json:"session_type" validate:"required,oneof=one_on_one group"`

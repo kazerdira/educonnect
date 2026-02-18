@@ -244,6 +244,40 @@ class _TeacherDashboardPageState extends State<TeacherDashboardPage> {
               ),
             ],
           ),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Expanded(
+                child: _actionCard(
+                  icon: Icons.pending_actions,
+                  label: 'Demandes',
+                  onTap: () => context.push('/teacher/bookings'),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: _actionCard(
+                  icon: Icons.event_note_outlined,
+                  label: 'Mes séries',
+                  onTap: () => context.push('/teacher/series'),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8.h),
+          Row(
+            children: [
+              Expanded(
+                child: _actionCard(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'Portefeuille',
+                  onTap: () => context.push('/wallet'),
+                ),
+              ),
+              SizedBox(width: 8.w),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
 
           SizedBox(height: 16.h),
 

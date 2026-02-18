@@ -4,18 +4,20 @@ class Transaction extends Equatable {
   final String id;
   final String payerId;
   final String payerName;
-  final String recipientId;
-  final String recipientName;
+  final String payeeId;
+  final String payeeName;
   final String? sessionId;
   final String? courseId;
   final String? subscriptionId;
   final double amount;
-  final String currency;
+  final double commission;
+  final double netAmount;
   final String paymentMethod;
   final String status;
-  final String transactionRef;
-  final String description;
-  final String? receiptUrl;
+  final String? providerReference;
+  final String? description;
+  final double refundAmount;
+  final String? refundReason;
   final String createdAt;
   final String updatedAt;
 
@@ -23,18 +25,20 @@ class Transaction extends Equatable {
     required this.id,
     required this.payerId,
     required this.payerName,
-    required this.recipientId,
-    required this.recipientName,
+    required this.payeeId,
+    required this.payeeName,
     this.sessionId,
     this.courseId,
     this.subscriptionId,
     required this.amount,
-    required this.currency,
+    required this.commission,
+    required this.netAmount,
     required this.paymentMethod,
     required this.status,
-    required this.transactionRef,
-    required this.description,
-    this.receiptUrl,
+    this.providerReference,
+    this.description,
+    required this.refundAmount,
+    this.refundReason,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -49,8 +53,9 @@ class Subscription extends Equatable {
   final String teacherId;
   final String teacherName;
   final String planType;
-  final double amount;
-  final String currency;
+  final int sessionsPerMonth;
+  final int sessionsUsed;
+  final double price;
   final String status;
   final String startDate;
   final String endDate;
@@ -64,8 +69,9 @@ class Subscription extends Equatable {
     required this.teacherId,
     required this.teacherName,
     required this.planType,
-    required this.amount,
-    required this.currency,
+    required this.sessionsPerMonth,
+    required this.sessionsUsed,
+    required this.price,
     required this.status,
     required this.startDate,
     required this.endDate,

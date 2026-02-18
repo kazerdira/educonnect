@@ -1,3 +1,4 @@
+import 'package:educonnect/core/network/api_error_handler.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/features/search/domain/entities/search_result.dart';
@@ -148,14 +149,6 @@ class SearchBloc extends Bloc<SearchEvent, SearchState> {
   }
 
   String _extractError(dynamic e) {
-    if (e is Exception) {
-      final msg = e.toString();
-      if (msg.contains('DioException')) {
-        final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(msg);
-        if (match != null) return match.group(1)!;
-      }
-      return msg.replaceFirst('Exception: ', '');
-    }
-    return 'Une erreur est survenue';
+    return extractApiError(e);
   }
 }

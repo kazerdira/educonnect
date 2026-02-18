@@ -2,7 +2,7 @@ package search
 
 // SearchRequest holds search params.
 type SearchRequest struct {
-	Query    string  `form:"q"    binding:"required,min=2"`
+	Query    string  `form:"q"`
 	Page     int     `form:"page"`
 	Limit    int     `form:"limit"`
 	Level    string  `form:"level"`

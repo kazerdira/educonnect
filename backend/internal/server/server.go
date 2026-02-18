@@ -8,6 +8,7 @@ import (
 
 	"educonnect/internal/admin"
 	"educonnect/internal/auth"
+	"educonnect/internal/booking"
 	"educonnect/internal/config"
 	"educonnect/internal/course"
 	"educonnect/internal/homework"
@@ -22,6 +23,7 @@ import (
 	"educonnect/internal/student"
 	"educonnect/internal/teacher"
 	"educonnect/internal/user"
+	"educonnect/internal/wallet"
 	"educonnect/pkg/cache"
 	"educonnect/pkg/database"
 	"educonnect/pkg/livekit"
@@ -30,6 +32,7 @@ import (
 	"educonnect/pkg/storage"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // Dependencies holds all external service connections.
@@ -63,6 +66,8 @@ type Server struct {
 	paymentHandler      *payment.Handler
 	adminHandler        *admin.Handler
 	seriesHandler       *sessionseries.Handler
+	bookingHandler      *booking.Handler
+	walletHandler       *wallet.Handler
 }
 
 // New creates a new Server instance and sets up routes.
@@ -116,8 +121,14 @@ func New(deps *Dependencies) *Server {
 	adminService := admin.NewService(deps.DB)
 	adminHandler := admin.NewHandler(adminService)
 
-	seriesService := sessionseries.NewService(deps.DB, deps.LiveKit)
+	walletService := wallet.NewService(deps.DB)
+	walletHandler := wallet.NewHandler(walletService)
+
+	seriesService := sessionseries.NewService(deps.DB, deps.LiveKit, walletService)
 	seriesHandler := sessionseries.NewHandler(seriesService)
+
+	bookingService := booking.NewService(deps.DB, notificationService)
+	bookingHandler := booking.NewHandler(bookingService)
 
 	s := &Server{
 		router:              router,
@@ -137,6 +148,8 @@ func New(deps *Dependencies) *Server {
 		paymentHandler:      paymentHandler,
 		adminHandler:        adminHandler,
 		seriesHandler:       seriesHandler,
+		bookingHandler:      bookingHandler,
+		walletHandler:       walletHandler,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf(":%s", deps.Config.App.Port),
 			Handler: router,
@@ -187,7 +200,11 @@ func (s *Server) syncTeachersToSearch() {
 		if err := rows.Scan(&id, &firstName, &lastName, &wilaya, &bio, &ratingAvg, &totalSessions); err != nil {
 			continue
 		}
-		docs = append(docs, map[string]interface{}{
+
+		// Fetch subjects and levels from offerings
+		subjects, levels, priceMin, priceMax := s.fetchTeacherOfferingsMeta(ctx, id)
+
+		doc := map[string]interface{}{
 			"id":             id,
 			"name":           firstName + " " + lastName,
 			"first_name":     firstName,
@@ -196,7 +213,16 @@ func (s *Server) syncTeachersToSearch() {
 			"bio":            bio,
 			"rating_avg":     ratingAvg,
 			"total_sessions": totalSessions,
-		})
+			"subjects":       subjects,
+			"levels":         levels,
+		}
+		if priceMin > 0 {
+			doc["price_min"] = priceMin
+		}
+		if priceMax > 0 {
+			doc["price_max"] = priceMax
+		}
+		docs = append(docs, doc)
 	}
 	if len(docs) > 0 {
 		_, err := s.deps.Search.Client.Index("teachers").AddDocuments(docs)
@@ -206,4 +232,48 @@ func (s *Server) syncTeachersToSearch() {
 			slog.Info("synced teachers to search", "count", len(docs))
 		}
 	}
+}
+
+// fetchTeacherOfferingsMeta returns unique subject names, level names, min and max prices.
+func (s *Server) fetchTeacherOfferingsMeta(ctx context.Context, teacherID string) ([]string, []string, float64, float64) {
+	uid, _ := uuid.Parse(teacherID)
+	rows, err := s.deps.DB.Pool.Query(ctx,
+		`SELECT DISTINCT sub.name_fr, lvl.name, o.price_per_hour
+		 FROM offerings o
+		 JOIN subjects sub ON sub.id = o.subject_id
+		 JOIN levels   lvl ON lvl.id = o.level_id
+		 WHERE o.teacher_id = $1 AND o.is_active = true`, uid)
+	if err != nil {
+		return nil, nil, 0, 0
+	}
+	defer rows.Close()
+
+	subjectSet := map[string]bool{}
+	levelSet := map[string]bool{}
+	var priceMin, priceMax float64
+	for rows.Next() {
+		var subName, lvlName string
+		var price float64
+		if err := rows.Scan(&subName, &lvlName, &price); err != nil {
+			continue
+		}
+		subjectSet[subName] = true
+		levelSet[lvlName] = true
+		if priceMin == 0 || price < priceMin {
+			priceMin = price
+		}
+		if price > priceMax {
+			priceMax = price
+		}
+	}
+
+	subjects := make([]string, 0, len(subjectSet))
+	for s := range subjectSet {
+		subjects = append(subjects, s)
+	}
+	levels := make([]string, 0, len(levelSet))
+	for l := range levelSet {
+		levels = append(levels, l)
+	}
+	return subjects, levels, priceMin, priceMax
 }

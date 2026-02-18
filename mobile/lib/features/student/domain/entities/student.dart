@@ -42,6 +42,7 @@ class StudentDashboard extends Equatable {
   final String cycle;
   final int totalSessions;
   final int totalCourses;
+  final List<StudentSessionBrief> upcomingSessions;
 
   const StudentDashboard({
     this.firstName = '',
@@ -52,6 +53,7 @@ class StudentDashboard extends Equatable {
     this.cycle = '',
     this.totalSessions = 0,
     this.totalCourses = 0,
+    this.upcomingSessions = const [],
   });
 
   @override
@@ -69,16 +71,16 @@ class StudentSessionBrief extends Equatable {
   final String title;
   final String teacherName;
   final DateTime startTime;
+  final DateTime endTime;
   final String status;
-  final String type;
 
   const StudentSessionBrief({
     required this.id,
     required this.title,
     required this.teacherName,
     required this.startTime,
+    required this.endTime,
     required this.status,
-    required this.type,
   });
 
   @override
@@ -86,22 +88,22 @@ class StudentSessionBrief extends Equatable {
 }
 
 class StudentEnrollment extends Equatable {
-  final String id;
-  final String courseId;
-  final String courseName;
-  final double progress;
-  final DateTime enrolledAt;
+  final String sessionId;
+  final String title;
+  final String teacherName;
+  final DateTime startTime;
   final String status;
+  final String attendance;
 
   const StudentEnrollment({
-    required this.id,
-    required this.courseId,
-    required this.courseName,
-    this.progress = 0.0,
-    required this.enrolledAt,
+    required this.sessionId,
+    required this.title,
+    required this.teacherName,
+    required this.startTime,
     required this.status,
+    required this.attendance,
   });
 
   @override
-  List<Object?> get props => [id, courseId, status];
+  List<Object?> get props => [sessionId, title, status];
 }

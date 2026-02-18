@@ -24,6 +24,20 @@ func NewService(db *database.Postgres) *Service {
 	return &Service{db: db}
 }
 
+// CreateNotification inserts an in-app notification for a user.
+// This is a reusable helper called from other services.
+func (s *Service) CreateNotification(ctx context.Context, userID uuid.UUID, notifType, title, body string, data map[string]interface{}) error {
+	_, err := s.db.Pool.Exec(ctx,
+		`INSERT INTO notifications (user_id, type, title, body, data, channel)
+		 VALUES ($1, $2, $3, $4, $5, 'in_app')`,
+		userID, notifType, title, body, data,
+	)
+	if err != nil {
+		return fmt.Errorf("create notification: %w", err)
+	}
+	return nil
+}
+
 // ─── ListNotifications ──────────────────────────────────────────
 
 func (s *Service) ListNotifications(ctx context.Context, userID string, limit, offset int, unreadOnly bool) ([]NotificationResponse, int, error) {

@@ -9,6 +9,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
 
   @override
   Future<Transaction> initiatePayment({
+    required String payeeId,
     String? sessionId,
     String? courseId,
     required double amount,
@@ -16,6 +17,7 @@ class PaymentRepositoryImpl implements PaymentRepository {
     String? description,
   }) =>
       remoteDataSource.initiatePayment(
+        payeeId: payeeId,
         sessionId: sessionId,
         courseId: courseId,
         amount: amount,
@@ -25,12 +27,12 @@ class PaymentRepositoryImpl implements PaymentRepository {
 
   @override
   Future<Transaction> confirmPayment({
-    required String transactionRef,
-    String? receiptUrl,
+    required String transactionId,
+    required String providerReference,
   }) =>
       remoteDataSource.confirmPayment(
-        transactionRef: transactionRef,
-        receiptUrl: receiptUrl,
+        transactionId: transactionId,
+        providerReference: providerReference,
       );
 
   @override
@@ -41,34 +43,32 @@ class PaymentRepositoryImpl implements PaymentRepository {
   Future<Transaction> refundPayment(
     String transactionId, {
     required String reason,
-    double? amount,
-    required bool fullRefund,
+    required double amount,
   }) =>
       remoteDataSource.refundPayment(
         transactionId,
         reason: reason,
         amount: amount,
-        fullRefund: fullRefund,
       );
 
   @override
   Future<Subscription> createSubscription({
     required String teacherId,
     required String planType,
-    required double amount,
-    required String currency,
-    required String paymentMethod,
-    required bool autoRenew,
-    String? startDate,
+    required int sessionsPerMonth,
+    required double price,
+    required String startDate,
+    required String endDate,
+    bool? autoRenew,
   }) =>
       remoteDataSource.createSubscription(
         teacherId: teacherId,
         planType: planType,
-        amount: amount,
-        currency: currency,
-        paymentMethod: paymentMethod,
-        autoRenew: autoRenew,
+        sessionsPerMonth: sessionsPerMonth,
+        price: price,
         startDate: startDate,
+        endDate: endDate,
+        autoRenew: autoRenew,
       );
 
   @override

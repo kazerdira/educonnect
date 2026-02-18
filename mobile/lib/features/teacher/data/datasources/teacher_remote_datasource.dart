@@ -69,6 +69,16 @@ class TeacherRemoteDataSource {
         .toList();
   }
 
+  /// Get public offerings for a specific teacher
+  Future<List<OfferingModel>> getTeacherOfferings(String teacherId) async {
+    final response =
+        await apiClient.dio.get(ApiConstants.teacherOfferings(teacherId));
+    final data = response.data['data'] as List<dynamic>? ?? [];
+    return data
+        .map((e) => OfferingModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<OfferingModel> createOffering({
     required String subjectId,
     required String levelId,

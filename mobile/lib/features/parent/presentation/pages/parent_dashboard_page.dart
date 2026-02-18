@@ -74,6 +74,36 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                   ),
                   SizedBox(height: 20.h),
 
+                  // Quick actions
+                  Text(
+                    'Actions rapides',
+                    style:
+                        TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8.h),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _actionCard(
+                          theme,
+                          icon: Icons.calendar_month,
+                          label: 'Réservations',
+                          onTap: () => context.push('/parent/bookings'),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: _actionCard(
+                          theme,
+                          icon: Icons.child_care,
+                          label: 'Mes enfants',
+                          onTap: () => context.push('/parent/children'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 20.h),
+
                   // Children section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -167,6 +197,39 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
                 label,
                 style: TextStyle(fontSize: 11.sp, color: Colors.grey[600]),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _actionCard(
+    ThemeData theme, {
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.r),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 12.w),
+          child: Row(
+            children: [
+              Icon(icon, color: theme.colorScheme.primary, size: 24.sp),
+              SizedBox(width: 8.w),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14.sp,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey[400], size: 20.sp),
             ],
           ),
         ),

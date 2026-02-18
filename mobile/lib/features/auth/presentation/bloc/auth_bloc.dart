@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:educonnect/core/network/api_error_handler.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/features/auth/domain/entities/user.dart';
@@ -47,13 +49,13 @@ class AuthRegisterTeacherRequested extends AuthEvent {
 
   @override
   List<Object?> get props => [
-    email,
-    phone,
-    password,
-    firstName,
-    lastName,
-    wilaya,
-  ];
+        email,
+        phone,
+        password,
+        firstName,
+        lastName,
+        wilaya,
+      ];
 }
 
 class AuthRegisterParentRequested extends AuthEvent {
@@ -75,13 +77,13 @@ class AuthRegisterParentRequested extends AuthEvent {
 
   @override
   List<Object?> get props => [
-    email,
-    phone,
-    password,
-    firstName,
-    lastName,
-    wilaya,
-  ];
+        email,
+        phone,
+        password,
+        firstName,
+        lastName,
+        wilaya,
+      ];
 }
 
 class AuthRegisterStudentRequested extends AuthEvent {
@@ -109,14 +111,14 @@ class AuthRegisterStudentRequested extends AuthEvent {
 
   @override
   List<Object?> get props => [
-    email,
-    phone,
-    password,
-    firstName,
-    lastName,
-    wilaya,
-    levelCode,
-  ];
+        email,
+        phone,
+        password,
+        firstName,
+        lastName,
+        wilaya,
+        levelCode,
+      ];
 }
 
 class AuthLogoutRequested extends AuthEvent {}
@@ -279,12 +281,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   String _mapError(dynamic e) {
-    if (e.toString().contains('409')) {
-      return 'Un compte avec cet email ou téléphone existe déjà';
+    // Auth-specific overrides on top of shared handler
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      if (status == 409)
+        return 'Un compte avec cet email ou téléphone existe déjà';
+      if (status == 401) return 'Email ou mot de passe incorrect';
     }
-    if (e.toString().contains('401')) {
-      return 'Email ou mot de passe incorrect';
-    }
-    return 'Une erreur est survenue. Veuillez réessayer.';
+    return extractApiError(e);
   }
 }

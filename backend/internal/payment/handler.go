@@ -166,6 +166,8 @@ func handleError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
 	case errors.Is(err, ErrAlreadyCancelled), errors.Is(err, ErrAlreadyRefunded):
 		c.JSON(http.StatusConflict, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
+	case errors.Is(err, ErrNotPending), errors.Is(err, ErrNotCompleted):
+		c.JSON(http.StatusConflict, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
 	case errors.Is(err, ErrInvalidRefund):
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": gin.H{"message": err.Error()}})
 	default:

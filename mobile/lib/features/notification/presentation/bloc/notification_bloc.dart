@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+import 'package:educonnect/core/network/api_error_handler.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/features/notification/domain/entities/notification.dart';
@@ -183,11 +183,6 @@ class NotificationBloc extends Bloc<NotificationEvent, NotificationState> {
   }
 
   String _extractError(dynamic e) {
-    if (e is DioException && e.response?.data is Map) {
-      return (e.response!.data as Map)['error']?.toString() ??
-          e.message ??
-          'Erreur inconnue';
-    }
-    return e.toString();
+    return extractApiError(e);
   }
 }

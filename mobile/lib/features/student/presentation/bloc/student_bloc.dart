@@ -1,3 +1,4 @@
+import 'package:educonnect/core/network/api_error_handler.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:educonnect/features/student/domain/entities/student.dart';
@@ -90,14 +91,7 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
     try {
       final dashboard = await studentRepository.getDashboard();
 
-      List<StudentSessionBrief> recentSessions = [];
       List<StudentEnrollment> enrollments = [];
-
-      try {
-        recentSessions = await studentRepository.getProgress();
-      } catch (_) {
-        // progress endpoint may fail – still show dashboard
-      }
 
       try {
         enrollments = await studentRepository.getEnrollments();
@@ -107,7 +101,7 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
 
       emit(StudentDashboardLoaded(
         dashboard: dashboard,
-        recentSessions: recentSessions,
+        recentSessions: dashboard.upcomingSessions,
         enrollments: enrollments,
       ));
     } catch (e) {
@@ -142,16 +136,6 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
   }
 
   String _extractError(dynamic e) {
-    final msg = e.toString();
-    if (msg.contains('DioException')) {
-      final match = RegExp(r'"error"\s*:\s*"([^"]+)"').firstMatch(msg);
-      if (match != null) return match.group(1)!;
-      final msgMatch = RegExp(r'"message"\s*:\s*"([^"]+)"').firstMatch(msg);
-      if (msgMatch != null) return msgMatch.group(1)!;
-    }
-    if (e is Exception) {
-      return msg.replaceFirst('Exception: ', '');
-    }
-    return 'Une erreur est survenue';
+    return extractApiError(e);
   }
 }

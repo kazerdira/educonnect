@@ -27,6 +27,74 @@ func NewService(db *database.Postgres, search *search.Meilisearch) *Service {
 	return &Service{db: db, search: search}
 }
 
+// reindexTeacher updates the teacher's Meilisearch document including subjects/levels from offerings.
+func (s *Service) reindexTeacher(ctx context.Context, profile *TeacherProfileResponse) {
+	if s.search == nil {
+		return
+	}
+
+	// Gather subjects, levels, price range from active offerings
+	rows, err := s.db.Pool.Query(ctx,
+		`SELECT DISTINCT sub.name_fr, lvl.name, o.price_per_hour
+		 FROM offerings o
+		 JOIN subjects sub ON sub.id = o.subject_id
+		 JOIN levels   lvl ON lvl.id = o.level_id
+		 WHERE o.teacher_id = $1 AND o.is_active = true`, profile.UserID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	subjectSet := map[string]bool{}
+	levelSet := map[string]bool{}
+	var priceMin, priceMax float64
+	for rows.Next() {
+		var subName, lvlName string
+		var price float64
+		if err := rows.Scan(&subName, &lvlName, &price); err != nil {
+			continue
+		}
+		subjectSet[subName] = true
+		levelSet[lvlName] = true
+		if priceMin == 0 || price < priceMin {
+			priceMin = price
+		}
+		if price > priceMax {
+			priceMax = price
+		}
+	}
+
+	subjects := make([]string, 0, len(subjectSet))
+	for s := range subjectSet {
+		subjects = append(subjects, s)
+	}
+	levels := make([]string, 0, len(levelSet))
+	for l := range levelSet {
+		levels = append(levels, l)
+	}
+
+	doc := map[string]interface{}{
+		"id":              profile.UserID.String(),
+		"name":            profile.FirstName + " " + profile.LastName,
+		"first_name":      profile.FirstName,
+		"last_name":       profile.LastName,
+		"wilaya":          profile.Wilaya,
+		"bio":             profile.Bio,
+		"specializations": profile.Specializations,
+		"rating_avg":      profile.RatingAvg,
+		"total_sessions":  profile.TotalSessions,
+		"subjects":        subjects,
+		"levels":          levels,
+	}
+	if priceMin > 0 {
+		doc["price_min"] = priceMin
+	}
+	if priceMax > 0 {
+		doc["price_max"] = priceMax
+	}
+	_ = s.search.IndexTeacher(doc)
+}
+
 // ─── Profile ────────────────────────────────────────────────────
 
 func (s *Service) GetProfile(ctx context.Context, userID string) (*TeacherProfileResponse, error) {
@@ -86,17 +154,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, req UpdateTe
 	// Re-index in Meilisearch
 	profile, err := s.GetProfile(ctx, userID)
 	if err == nil && s.search != nil {
-		_ = s.search.IndexTeacher(map[string]interface{}{
-			"id":              profile.UserID.String(),
-			"name":            profile.FirstName + " " + profile.LastName,
-			"first_name":      profile.FirstName,
-			"last_name":       profile.LastName,
-			"wilaya":          profile.Wilaya,
-			"bio":             profile.Bio,
-			"specializations": profile.Specializations,
-			"rating_avg":      profile.RatingAvg,
-			"total_sessions":  profile.TotalSessions,
-		})
+		s.reindexTeacher(ctx, profile)
 	}
 
 	return profile, nil
@@ -134,6 +192,11 @@ func (s *Service) CreateOffering(ctx context.Context, teacherID string, req Crea
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create offering: %w", err)
+	}
+
+	// Re-index teacher in search with updated subjects/levels
+	if profile, pErr := s.GetProfile(ctx, teacherID); pErr == nil {
+		s.reindexTeacher(ctx, profile)
 	}
 
 	return &o, nil
@@ -210,6 +273,11 @@ func (s *Service) UpdateOffering(ctx context.Context, teacherID string, offering
 		return nil, fmt.Errorf("update offering: %w", err)
 	}
 
+	// Re-index teacher in search with updated subjects/levels
+	if profile, pErr := s.GetProfile(ctx, teacherID); pErr == nil {
+		s.reindexTeacher(ctx, profile)
+	}
+
 	return &o, nil
 }
 
@@ -228,6 +296,12 @@ func (s *Service) DeleteOffering(ctx context.Context, teacherID string, offering
 	if tag.RowsAffected() == 0 {
 		return ErrOfferingNotFound
 	}
+
+	// Re-index teacher in search with updated subjects/levels
+	if profile, pErr := s.GetProfile(ctx, teacherID); pErr == nil {
+		s.reindexTeacher(ctx, profile)
+	}
+
 	return nil
 }
 

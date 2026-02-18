@@ -24,6 +24,13 @@ import 'package:educonnect/features/session/presentation/bloc/session_bloc.dart'
 import 'package:educonnect/features/session/presentation/pages/session_list_page.dart';
 import 'package:educonnect/features/session/presentation/pages/session_detail_page.dart';
 import 'package:educonnect/features/session/presentation/pages/create_session_page.dart';
+import 'package:educonnect/features/session/presentation/pages/series_list_page.dart';
+import 'package:educonnect/features/session/presentation/pages/create_series_page.dart';
+import 'package:educonnect/features/session/presentation/pages/series_detail_page.dart';
+import 'package:educonnect/features/session/presentation/pages/invitations_page.dart';
+import 'package:educonnect/features/session/presentation/pages/platform_fees_page.dart';
+import 'package:educonnect/features/session/presentation/pages/browse_series_page.dart';
+import 'package:educonnect/features/session/presentation/bloc/series_bloc.dart';
 import 'package:educonnect/features/parent/presentation/bloc/parent_bloc.dart';
 import 'package:educonnect/features/parent/presentation/pages/parent_dashboard_page.dart';
 import 'package:educonnect/features/parent/presentation/pages/children_list_page.dart';
@@ -31,6 +38,8 @@ import 'package:educonnect/features/parent/presentation/pages/add_child_page.dar
 import 'package:educonnect/features/parent/presentation/pages/child_detail_page.dart';
 import 'package:educonnect/features/parent/presentation/pages/edit_child_page.dart';
 import 'package:educonnect/features/parent/presentation/pages/child_progress_page.dart';
+import 'package:educonnect/features/parent/presentation/pages/parent_teacher_search_page.dart';
+import 'package:educonnect/features/parent/presentation/pages/parent_bookings_page.dart';
 import 'package:educonnect/features/parent/domain/entities/child.dart' as ent;
 import 'package:educonnect/features/course/presentation/bloc/course_bloc.dart';
 import 'package:educonnect/features/course/presentation/pages/course_list_page.dart';
@@ -61,6 +70,13 @@ import 'package:educonnect/features/admin/presentation/pages/admin_users_page.da
 import 'package:educonnect/features/admin/presentation/pages/admin_verifications_page.dart';
 import 'package:educonnect/features/admin/presentation/pages/admin_disputes_page.dart';
 import 'package:educonnect/features/admin/presentation/pages/admin_subjects_page.dart';
+import 'package:educonnect/features/booking/presentation/bloc/booking_bloc.dart';
+import 'package:educonnect/features/booking/presentation/pages/teacher_bookings_page.dart';
+import 'package:educonnect/features/booking/presentation/pages/student_bookings_page.dart';
+import 'package:educonnect/features/wallet/presentation/bloc/wallet_bloc.dart';
+import 'package:educonnect/features/wallet/presentation/pages/wallet_page.dart';
+import 'package:educonnect/features/wallet/presentation/pages/buy_credits_page.dart';
+import 'package:educonnect/features/wallet/presentation/pages/wallet_transactions_page.dart';
 import 'package:educonnect/core/di/injection.dart';
 
 /// Converts a [Stream] into a [ChangeNotifier] so GoRouter re-evaluates
@@ -157,15 +173,52 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
             child: const TeacherEarningsPage(),
           ),
         ),
+        // Teacher series routes
+        GoRoute(
+          path: '/teacher/series',
+          builder: (_, __) => const SeriesListPage(),
+        ),
+        GoRoute(
+          path: '/teacher/series/create',
+          builder: (_, __) => const CreateSeriesPage(),
+        ),
+        GoRoute(
+          path: '/teacher/series/:id',
+          builder: (_, state) => SeriesDetailPage(
+            seriesId: state.pathParameters['id']!,
+          ),
+        ),
+        // Teacher fees route
+        GoRoute(
+          path: '/teacher/fees',
+          builder: (_, __) => const PlatformFeesPage(),
+        ),
+        // Teacher booking requests management
+        GoRoute(
+          path: '/teacher/bookings',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<BookingBloc>(),
+            child: const TeacherBookingsPage(),
+          ),
+        ),
         // Public teacher profile — MUST be after all /teacher/xxx routes
         GoRoute(
           path: '/teacher/:id',
-          builder: (_, state) => BlocProvider(
-            create: (_) => getIt<TeacherBloc>(),
-            child: TeacherPublicProfilePage(
-              teacherId: state.pathParameters['id']!,
-            ),
-          ),
+          builder: (_, state) {
+            // Check if parent is viewing for a child
+            final extra = state.extra as Map<String, dynamic>?;
+            final forChildId = extra?['forChildId'] as String?;
+            final forChildName = extra?['forChildName'] as String?;
+
+            return BlocProvider(
+              create: (_) => getIt<TeacherBloc>(),
+              child: TeacherPublicProfilePage(
+                teacherId: state.pathParameters['id']!,
+                forChildId: forChildId,
+                forChildName: forChildName,
+              ),
+            );
+          },
         ),
 
         // ── Search routes ───────────────────────────────────────
@@ -174,6 +227,24 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
           builder: (_, __) => BlocProvider(
             create: (_) => getIt<SearchBloc>(),
             child: const SearchPage(),
+          ),
+        ),
+        // Browse series route (for students/parents)
+        GoRoute(
+          path: '/series/browse',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<SeriesBloc>(),
+            child: const BrowseSeriesPage(),
+          ),
+        ),
+        // Public series detail route (for students viewing)
+        GoRoute(
+          path: '/series/:id',
+          builder: (_, state) => BlocProvider(
+            create: (_) => getIt<SeriesBloc>(),
+            child: SeriesDetailPage(
+              seriesId: state.pathParameters['id']!,
+            ),
           ),
         ),
 
@@ -208,6 +279,13 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
           builder: (_, __) => BlocProvider(
             create: (_) => getIt<ParentBloc>(),
             child: const ParentDashboardPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/parent/bookings',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<BookingBloc>(),
+            child: const ParentBookingsPage(),
           ),
         ),
         GoRoute(
@@ -249,6 +327,20 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
               childId: state.pathParameters['id']!,
             ),
           ),
+        ),
+        // Parent search teacher for child
+        GoRoute(
+          path: '/parent/children/:id/search-teacher',
+          builder: (_, state) {
+            final child = state.extra as ent.Child;
+            return BlocProvider(
+              create: (_) => getIt<SearchBloc>(),
+              child: ParentTeacherSearchPage(
+                childId: child.id,
+                childName: '${child.firstName} ${child.lastName}',
+              ),
+            );
+          },
         ),
 
         // ── Course routes ───────────────────────────────────────
@@ -327,6 +419,29 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
           ),
         ),
 
+        // ── Wallet routes ───────────────────────────────────────
+        GoRoute(
+          path: '/wallet',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<WalletBloc>(),
+            child: const WalletPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/wallet/buy',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<WalletBloc>(),
+            child: const BuyCreditsPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/wallet/transactions',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<WalletBloc>(),
+            child: const WalletTransactionsPage(),
+          ),
+        ),
+
         // ── Homework routes ─────────────────────────────────────
         GoRoute(
           path: '/homework',
@@ -383,6 +498,17 @@ GoRouter createRouter(AuthBloc authBloc) => GoRouter(
           builder: (_, __) => BlocProvider(
             create: (_) => getIt<StudentBloc>(),
             child: const StudentDashboardPage(),
+          ),
+        ),
+        GoRoute(
+          path: '/student/invitations',
+          builder: (_, __) => const InvitationsPage(),
+        ),
+        GoRoute(
+          path: '/student/bookings',
+          builder: (_, __) => BlocProvider(
+            create: (_) => getIt<BookingBloc>(),
+            child: const StudentBookingsPage(),
           ),
         ),
 

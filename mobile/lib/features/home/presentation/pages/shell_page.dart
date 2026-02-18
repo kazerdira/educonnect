@@ -9,7 +9,11 @@ import 'package:educonnect/features/teacher/presentation/pages/teacher_dashboard
 import 'package:educonnect/features/search/presentation/bloc/search_bloc.dart';
 import 'package:educonnect/features/search/presentation/pages/search_page.dart';
 import 'package:educonnect/features/session/presentation/bloc/session_bloc.dart';
+import 'package:educonnect/features/session/presentation/bloc/series_bloc.dart';
 import 'package:educonnect/features/session/presentation/pages/session_list_page.dart';
+import 'package:educonnect/features/session/presentation/pages/series_list_page.dart';
+import 'package:educonnect/features/session/presentation/pages/invitations_page.dart';
+import 'package:educonnect/features/session/presentation/pages/browse_series_page.dart';
 import 'package:educonnect/features/parent/presentation/bloc/parent_bloc.dart';
 import 'package:educonnect/features/parent/presentation/pages/parent_dashboard_page.dart';
 import 'package:educonnect/features/parent/presentation/pages/children_list_page.dart';
@@ -87,14 +91,11 @@ class _ShellPageState extends State<ShellPage> {
             ),
           ),
           _TabConfig(
-            page: BlocProvider(
-              create: (_) => getIt<SessionBloc>(),
-              child: const SessionListPage(),
-            ),
+            page: const SeriesListPage(),
             navItem: const BottomNavigationBarItem(
-              icon: Icon(Icons.video_camera_front_outlined),
-              activeIcon: Icon(Icons.video_camera_front),
-              label: 'Mes Sessions',
+              icon: Icon(Icons.calendar_view_month_outlined),
+              activeIcon: Icon(Icons.calendar_view_month),
+              label: 'Séries',
             ),
           ),
           _TabConfig(
@@ -226,13 +227,21 @@ class _ShellPageState extends State<ShellPage> {
           ),
           _TabConfig(
             page: BlocProvider(
-              create: (_) => getIt<SessionBloc>(),
-              child: const SessionListPage(showCreateButton: false),
+              create: (_) => getIt<SeriesBloc>(),
+              child: const BrowseSeriesPage(),
             ),
             navItem: const BottomNavigationBarItem(
-              icon: Icon(Icons.video_camera_front_outlined),
-              activeIcon: Icon(Icons.video_camera_front),
-              label: 'Sessions',
+              icon: Icon(Icons.explore_outlined),
+              activeIcon: Icon(Icons.explore),
+              label: 'Explorer',
+            ),
+          ),
+          _TabConfig(
+            page: const InvitationsPage(),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.mail_outline),
+              activeIcon: Icon(Icons.mail),
+              label: 'Invitations',
             ),
           ),
           _TabConfig(

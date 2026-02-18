@@ -24,6 +24,8 @@ class ApiConstants {
   // ── Teachers (12 routes) ────────────────────────────────────
   static const String teachers = '/teachers'; // GET list
   static String teacherDetail(String id) => '/teachers/$id'; // GET one
+  static String teacherOfferings(String id) =>
+      '/teachers/$id/offerings'; // GET public offerings
   static const String teacherProfile = '/teachers/profile'; // PUT
   static const String teacherDashboard = '/teachers/dashboard'; // GET
   static const String offerings = '/teachers/offerings'; // POST & GET list
@@ -55,6 +57,52 @@ class ApiConstants {
       '/sessions/$id/reschedule'; // PUT
   static String endSession(String id) => '/sessions/$id/end'; // POST
   static String sessionRecording(String id) => '/sessions/$id/recording'; // GET
+
+  // ── Session Series (NEW - teacher creates series of sessions) ──
+  static const String sessionSeries = '/sessions/series'; // POST & GET list
+  static String seriesDetail(String id) => '/sessions/series/$id'; // GET
+  static String addSessionsToSeries(String id) =>
+      '/sessions/series/$id/sessions'; // POST
+  static String finalizeSeries(String id) =>
+      '/sessions/series/$id/finalize'; // POST
+  static String inviteToSeries(String id) =>
+      '/sessions/series/$id/invite'; // POST
+  static String seriesRequests(String id) =>
+      '/sessions/series/$id/requests'; // GET
+  static String acceptRequest(String seriesId, String enrollmentId) =>
+      '/sessions/series/$seriesId/requests/$enrollmentId/accept'; // PUT (teacher accepts student request)
+  static String declineRequest(String seriesId, String enrollmentId) =>
+      '/sessions/series/$seriesId/requests/$enrollmentId/decline'; // PUT (teacher declines student request)
+  static String removeStudent(String seriesId, String studentId) =>
+      '/sessions/series/$seriesId/students/$studentId'; // DELETE
+  static String requestToJoinSeries(String id) =>
+      '/sessions/series/$id/request'; // POST
+  static const String browseSeries = '/sessions/series/browse'; // GET
+
+  // ── Invitations (student view) ──────────────────────────────
+  static const String invitations = '/invitations'; // GET list
+  static String acceptInvitation(String id) =>
+      '/invitations/$id/accept'; // POST
+  static String declineInvitation(String id) =>
+      '/invitations/$id/decline'; // POST
+
+  // ── Wallet (teacher credit system) ──────────────────────────
+  static const String wallet = '/wallet'; // GET
+  static const String walletBuy = '/wallet/buy'; // POST
+  static const String walletTransactions = '/wallet/transactions'; // GET
+  static const String walletPackages = '/wallet/packages'; // GET
+
+  // ── Platform Fees (legacy — kept for backward compat) ──────
+  static const String pendingFees = '/fees/pending'; // GET
+  static String confirmFeePayment(String id) => '/fees/$id/confirm'; // POST
+
+  // ── Bookings (Student requests session from teacher) ────────
+  static const String bookings = '/bookings'; // POST & GET list
+  static String bookingDetail(String id) => '/bookings/$id'; // GET & DELETE
+  static String acceptBooking(String id) => '/bookings/$id/accept'; // PUT
+  static String declineBooking(String id) => '/bookings/$id/decline'; // PUT
+  static String bookingMessages(String id) =>
+      '/bookings/$id/messages'; // POST & GET
 
   // ── Courses (9 routes) ──────────────────────────────────────
   static const String courses = '/courses'; // POST & GET list

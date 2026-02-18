@@ -102,6 +102,26 @@ class ChildDetailPage extends StatelessWidget {
 
             SizedBox(height: 32.h),
 
+            // ── Find a teacher button ───────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 48.h,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.search),
+                label: const Text('Trouver un prof'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
+                onPressed: () => context.push(
+                  '/parent/children/${child.id}/search-teacher',
+                  extra: child,
+                ),
+              ),
+            ),
+
+            SizedBox(height: 12.h),
+
             // ── Progress button ─────────────────────────────────
             SizedBox(
               width: double.infinity,

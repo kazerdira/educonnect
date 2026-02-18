@@ -27,7 +27,7 @@ func (s *Service) SearchTeachers(ctx context.Context, req SearchRequest) (*Searc
 		req.Limit = 20
 	}
 
-	filter := buildFilter(req)
+	filter := buildTeacherFilter(req)
 	offset := int64((req.Page - 1) * req.Limit)
 
 	opts := &meilisearch.SearchRequest{
@@ -61,7 +61,7 @@ func (s *Service) SearchCourses(ctx context.Context, req SearchRequest) (*Search
 		req.Limit = 20
 	}
 
-	filter := buildFilter(req)
+	filter := buildCourseFilter(req)
 	offset := int64((req.Page - 1) * req.Limit)
 
 	opts := &meilisearch.SearchRequest{
@@ -86,16 +86,36 @@ func (s *Service) SearchCourses(ctx context.Context, req SearchRequest) (*Search
 	}, nil
 }
 
-func buildFilter(req SearchRequest) string {
+// buildTeacherFilter uses array fields (subjects, levels) because a teacher
+// can have many offerings → many subjects/levels.
+func buildTeacherFilter(req SearchRequest) string {
+	var parts []string
+	if req.Level != "" {
+		parts = append(parts, fmt.Sprintf("levels = %q", req.Level))
+	}
+	if req.Subject != "" {
+		parts = append(parts, fmt.Sprintf("subjects = %q", req.Subject))
+	}
+	if req.Wilaya != "" {
+		parts = append(parts, fmt.Sprintf("wilaya = %q", req.Wilaya))
+	}
+	if req.MinPrice > 0 {
+		parts = append(parts, fmt.Sprintf("price_min >= %f", req.MinPrice))
+	}
+	if req.MaxPrice > 0 {
+		parts = append(parts, fmt.Sprintf("price_max <= %f", req.MaxPrice))
+	}
+	return strings.Join(parts, " AND ")
+}
+
+// buildCourseFilter uses singular fields matching the courses index.
+func buildCourseFilter(req SearchRequest) string {
 	var parts []string
 	if req.Level != "" {
 		parts = append(parts, fmt.Sprintf("level = %q", req.Level))
 	}
 	if req.Subject != "" {
 		parts = append(parts, fmt.Sprintf("subject = %q", req.Subject))
-	}
-	if req.Wilaya != "" {
-		parts = append(parts, fmt.Sprintf("wilaya = %q", req.Wilaya))
 	}
 	if req.MinPrice > 0 {
 		parts = append(parts, fmt.Sprintf("price >= %f", req.MinPrice))

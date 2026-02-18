@@ -104,8 +104,11 @@ func (s *Server) handleChangePassword() gin.HandlerFunc    { return s.userHandle
 func (s *Server) handleDeactivateAccount() gin.HandlerFunc { return s.userHandler.DeactivateAccount }
 
 // ─── Teacher ─────────────────────────────────────────────────
-func (s *Server) handleListTeachers() gin.HandlerFunc         { return s.teacherHandler.ListTeachers }
-func (s *Server) handleGetTeacher() gin.HandlerFunc           { return s.teacherHandler.GetTeacher }
+func (s *Server) handleListTeachers() gin.HandlerFunc { return s.teacherHandler.ListTeachers }
+func (s *Server) handleGetTeacher() gin.HandlerFunc   { return s.teacherHandler.GetTeacher }
+func (s *Server) handleGetTeacherOfferings() gin.HandlerFunc {
+	return s.teacherHandler.GetTeacherOfferings
+}
 func (s *Server) handleUpdateTeacherProfile() gin.HandlerFunc { return s.teacherHandler.UpdateProfile }
 func (s *Server) handleTeacherDashboard() gin.HandlerFunc     { return s.teacherHandler.Dashboard }
 func (s *Server) handleCreateOffering() gin.HandlerFunc       { return s.teacherHandler.CreateOffering }
